@@ -24,7 +24,7 @@ export function DealForm({ deal, onDone }: { deal?: Deal; onDone: () => void }) 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!artist.trim() || !counterparty.trim()) {
-      toast.error("Artist and counterparty are required");
+      toast.error("Talent and counterparty are required");
       return;
     }
     startTransition(async () => {
@@ -49,7 +49,7 @@ export function DealForm({ deal, onDone }: { deal?: Deal; onDone: () => void }) 
     <form className="space-y-4" onSubmit={submit}>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2 space-y-1">
-          <Label htmlFor="artist">Artist</Label>
+          <Label htmlFor="artist">Talent</Label>
           <Input id="artist" value={artist} onChange={(e) => setArtist(e.target.value)} required />
         </div>
         <div className="space-y-1">

@@ -8,7 +8,7 @@ import { deals } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 
 const dealSchema = z.object({
-  artist: z.string().min(1, "Artist is required"),
+  artist: z.string().min(1, "Talent is required"),
   type: z.enum(["recording", "brand"]),
   counterparty: z.string().min(1, "Counterparty is required"),
   value: z.coerce.number().min(0),

@@ -65,7 +65,7 @@ export function DealsClient({ deals }: { deals: Deal[] }) {
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-3">
-          <Input placeholder="Search by artist, counterparty, notes…" value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-xs" />
+          <Input placeholder="Search by talent, counterparty, notes…" value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-xs" />
           <FilterPills<Filter>
             value={filter}
             options={[
@@ -99,7 +99,7 @@ export function DealsClient({ deals }: { deals: Deal[] }) {
           <table className="w-full text-sm table-row-hover">
             <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Artist</th>
+                <th className="px-3 py-2 text-left font-medium">Talent</th>
                 <th className="px-3 py-2 text-left font-medium">Type</th>
                 <th className="px-3 py-2 text-left font-medium">Counterparty</th>
                 <th className="px-3 py-2 text-right font-medium">Value</th>
