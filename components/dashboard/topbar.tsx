@@ -46,7 +46,7 @@ export function Topbar() {
           className="mono"
           style={{ fontSize: 10, letterSpacing: "0.36em", color: "var(--ink-faint)" }}
         >
-          Dean St · Operations
+          Dean St
         </div>
         <h1
           style={{

@@ -215,20 +215,6 @@ export function Sidebar({
         >
           Sign out
         </button>
-        <div style={{ padding: "10px 14px 0" }}>
-          <div
-            className="mono"
-            style={{ fontSize: 9, letterSpacing: "0.32em", color: "var(--ink-faint)" }}
-          >
-            v0.1 · Internal
-          </div>
-          <div
-            className="serif"
-            style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, fontStyle: "italic" }}
-          >
-            Turning vision into velocity
-          </div>
-        </div>
       </div>
     </aside>
   );

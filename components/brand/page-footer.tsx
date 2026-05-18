@@ -12,7 +12,7 @@ export function PageFooter() {
         className="mono text-ink-faint"
         style={{ fontSize: 9.5, letterSpacing: "0.32em" }}
       >
-        Dean Street Consulting · Operations
+        Dean Street Consulting
       </span>
       <span
         className="mono text-ink-faint"
