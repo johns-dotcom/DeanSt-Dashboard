@@ -42,7 +42,7 @@ export function StatCard({
           alignItems: "baseline",
           gap: 6,
           lineHeight: 1,
-          fontFamily: '"DM Sans", sans-serif',
+          fontFamily: 'Arial, sans-serif',
           letterSpacing: "-0.03em",
           color: "var(--ink)",
         }}

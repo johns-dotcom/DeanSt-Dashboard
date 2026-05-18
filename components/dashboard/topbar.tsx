@@ -50,7 +50,7 @@ export function Topbar() {
         </div>
         <h1
           style={{
-            fontFamily: '"DM Sans", sans-serif',
+            fontFamily: 'Arial, sans-serif',
             fontSize: 30,
             fontWeight: 600,
             letterSpacing: "-0.02em",

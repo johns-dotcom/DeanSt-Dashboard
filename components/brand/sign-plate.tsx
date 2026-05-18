@@ -24,7 +24,7 @@ export function SignPlate({
     >
       <span
         style={{
-          fontFamily: '"DM Sans", sans-serif',
+          fontFamily: 'Arial, sans-serif',
           fontWeight: 700,
           fontSize: px(20),
           letterSpacing: "0.02em",

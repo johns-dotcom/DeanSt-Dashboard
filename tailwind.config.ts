@@ -38,9 +38,9 @@ const config: Config = {
         info: { DEFAULT: "rgba(10,58,28,0.10)", foreground: "var(--sign-green)" },
       },
       fontFamily: {
-        sans: ['"DM Sans"', "ui-sans-serif", "system-ui"],
-        serif: ['"Cormorant Garamond"', "Georgia", "serif"],
-        mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+        sans: ["Arial", "Helvetica", "sans-serif"],
+        serif: ["Arial", "Helvetica", "sans-serif"],
+        mono: ["Arial", "Helvetica", "sans-serif"],
       },
       borderRadius: {
         sm: "6px",

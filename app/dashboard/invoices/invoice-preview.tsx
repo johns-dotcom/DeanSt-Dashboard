@@ -35,7 +35,7 @@ export function InvoicePreviewPanel({
         borderRadius: 10,
         padding: "28px 32px 32px",
         color: "var(--ink)",
-        fontFamily: '"DM Sans", sans-serif',
+        fontFamily: 'Arial, sans-serif',
         fontSize: 13,
         lineHeight: 1.4,
       }}
@@ -52,7 +52,7 @@ export function InvoicePreviewPanel({
           <SignPlate size={0.85} />
           <h1
             style={{
-              fontFamily: '"DM Sans", sans-serif',
+              fontFamily: 'Arial, sans-serif',
               fontSize: 36,
               fontWeight: 800,
               letterSpacing: "-0.02em",

@@ -130,7 +130,7 @@ export function InvoicesClient({
             <Eyebrow size={10}>Saved invoices</Eyebrow>
             <div
               style={{
-                fontFamily: '"DM Sans", sans-serif',
+                fontFamily: 'Arial, sans-serif',
                 fontSize: 19,
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
@@ -152,7 +152,7 @@ export function InvoicesClient({
             </div>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: '"DM Sans", sans-serif' }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: 'Arial, sans-serif' }}>
             <thead>
               <tr style={{ background: "var(--cream-light)" }}>
                 <Th width={90}>Invoice #</Th>
@@ -172,7 +172,7 @@ export function InvoicesClient({
                   onClick={() => startEdit(inv)}
                 >
                   <Td>
-                    <span style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: 12.5 }}>
+                    <span style={{ fontFamily: 'Arial, sans-serif', fontSize: 12.5 }}>
                       #{inv.invoiceNumber.replace(/^[A-Z]+-?/, "")}
                     </span>
                   </Td>

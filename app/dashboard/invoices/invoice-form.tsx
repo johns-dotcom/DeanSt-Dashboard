@@ -121,7 +121,7 @@ export function InvoiceFormPanel({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3
             style={{
-              fontFamily: '"DM Sans", sans-serif',
+              fontFamily: 'Arial, sans-serif',
               fontSize: 19,
               fontWeight: 600,
               letterSpacing: "-0.01em",

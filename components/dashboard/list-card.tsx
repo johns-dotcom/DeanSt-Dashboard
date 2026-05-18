@@ -40,7 +40,7 @@ export function ListCard({
           <Eyebrow size={10}>{kicker}</Eyebrow>
           <h3
             style={{
-              fontFamily: '"DM Sans", sans-serif',
+              fontFamily: 'Arial, sans-serif',
               fontSize: 19,
               fontWeight: 600,
               letterSpacing: "-0.01em",

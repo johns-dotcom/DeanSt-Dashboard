@@ -127,22 +127,8 @@ export function Sidebar({
         minHeight: "100vh",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "0 6px 8px" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "0 6px 8px" }}>
         <SignPlate size={1} />
-        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-          <span className="serif" style={{ fontSize: 22 }}>Operations</span>
-          <span
-            className="mono"
-            style={{
-              fontSize: 9,
-              letterSpacing: "0.3em",
-              color: "var(--ink-faint)",
-              marginTop: 2,
-            }}
-          >
-            NYC · Est MMXXV
-          </span>
-        </div>
       </div>
 
       <div style={{ height: 1, background: "var(--hair)", margin: "0 6px" }} />

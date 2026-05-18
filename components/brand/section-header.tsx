@@ -17,7 +17,7 @@ export function SectionHeader({
       </div>
       <h2
         style={{
-          fontFamily: '"DM Sans", sans-serif',
+          fontFamily: 'Arial, sans-serif',
           fontSize: 22,
           fontWeight: 600,
           letterSpacing: "-0.015em",
