@@ -15,7 +15,14 @@ export const authConfig = {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      authorization: { params: { prompt: "select_account", hd: DOMAIN_RESTRICTION } },
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          hd: DOMAIN_RESTRICTION,
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.send",
+        },
+      },
     }),
   ],
   callbacks: {

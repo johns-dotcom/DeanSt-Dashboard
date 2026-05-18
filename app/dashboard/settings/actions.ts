@@ -3,37 +3,36 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { workspaces, workspaceMembers, workspaceInvites } from "@/lib/db/schema";
 import { requireSession, requireAdmin, initialsFor } from "@/lib/auth/workspace";
 import { inviteEmail } from "@/lib/email/invite-template";
+import { sendInviteViaGmail } from "@/lib/email/gmail";
 import type { Role } from "@/lib/db/schema";
 
 async function sendInviteEmail({
+  fromUserId,
   email,
   token,
   workspaceName,
   inviterName,
   role,
 }: {
+  fromUserId: string;
   email: string;
   token: string;
   workspaceName: string;
   inviterName: string;
   role: Role;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL ?? "Dean St <onboarding@resend.dev>";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const acceptUrl = `${appUrl}/invite/${token}`;
-  if (!apiKey) {
-    return { warn: `Resend not configured. Share this link directly: ${acceptUrl}` };
-  }
-  const resend = new Resend(apiKey);
   const { subject, html, text } = inviteEmail({ workspaceName, inviterName, acceptUrl, role });
-  const { error } = await resend.emails.send({ from, to: email, subject, html, text });
-  if (error) return { warn: `Could not send email: ${error.message}. Share link directly: ${acceptUrl}` };
+
+  const result = await sendInviteViaGmail({ fromUserId, to: email, subject, html, text });
+  if ("error" in result) {
+    return { warn: `${result.error} Share this link directly: ${acceptUrl}` };
+  }
   return { ok: true as const };
 }
 
@@ -81,6 +80,7 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>) {
   }
 
   const emailResult = await sendInviteEmail({
+    fromUserId: session.user.id,
     email: parsed.data.email,
     token: inviteToken!,
     workspaceName: session.workspace.name,
@@ -103,6 +103,7 @@ export async function resendInvite(inviteId: string) {
   if (!invite) return { error: "Invite not found" };
 
   const r = await sendInviteEmail({
+    fromUserId: session.user.id,
     email: invite.email,
     token: invite.token,
     workspaceName: session.workspace.name,
