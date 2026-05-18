@@ -1,0 +1,128 @@
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import type { Invoice } from "@/lib/db/schema";
+
+const styles = StyleSheet.create({
+  page: { padding: 48, fontSize: 10, fontFamily: "Helvetica", color: "#1a1a1a" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    borderBottom: "0.5px solid #ddd",
+    paddingBottom: 16,
+  },
+  brand: { fontSize: 16, fontWeight: 500 },
+  brandSub: { fontSize: 8, color: "#666", marginTop: 2 },
+  invoiceMeta: { textAlign: "right" },
+  metaLabel: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
+  metaValue: { fontFamily: "Courier", fontSize: 14, marginTop: 2 },
+  small: { fontSize: 8, color: "#666", marginTop: 4 },
+  section: { marginTop: 20 },
+  sectionLabel: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
+  billTo: { marginTop: 4, fontSize: 11, fontWeight: 500 },
+  description: { marginTop: 8, fontSize: 9, color: "#666" },
+  table: { marginTop: 24, width: "100%" },
+  tableHead: { flexDirection: "row", borderBottom: "0.5px solid #ddd", paddingBottom: 6 },
+  th: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
+  tr: { flexDirection: "row", paddingVertical: 6, borderBottom: "0.5px solid #eee" },
+  td: { fontSize: 10 },
+  totals: { marginTop: 16, marginLeft: "auto", width: 240 },
+  totalsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+  totalsLabel: { color: "#777" },
+  grandTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 6,
+    marginTop: 4,
+    borderTop: "0.5px solid #ddd",
+    fontSize: 11,
+    fontWeight: 500,
+  },
+  footer: { marginTop: 36, paddingTop: 16, borderTop: "0.5px solid #ddd", fontSize: 8, color: "#777" },
+});
+
+function fmt(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function fmtDate(d?: string | null) {
+  if (!d) return "—";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(d));
+}
+
+export function InvoicePDF({
+  invoice,
+  workspaceName,
+  paymentTerms,
+}: {
+  invoice: Invoice;
+  workspaceName: string;
+  paymentTerms: string;
+}) {
+  const subtotal = Number(invoice.subtotal);
+  const tax = Number(invoice.taxRate);
+  const total = Number(invoice.total);
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.brand}>{workspaceName} Media</Text>
+            <Text style={styles.brandSub}>Operations · {paymentTerms}</Text>
+          </View>
+          <View style={styles.invoiceMeta}>
+            <Text style={styles.metaLabel}>Invoice</Text>
+            <Text style={styles.metaValue}>{invoice.invoiceNumber}</Text>
+            <Text style={styles.small}>Issued {fmtDate(invoice.issuedDate)}</Text>
+            {invoice.dueDate ? <Text style={styles.small}>Due {fmtDate(invoice.dueDate)}</Text> : null}
+            <Text style={[styles.small, { marginTop: 6, textTransform: "uppercase" }]}>{invoice.status}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Bill to</Text>
+          <Text style={styles.billTo}>{invoice.client}</Text>
+          {invoice.description ? <Text style={styles.description}>{invoice.description}</Text> : null}
+        </View>
+
+        <View style={styles.table}>
+          <View style={styles.tableHead}>
+            <Text style={[styles.th, { flex: 4 }]}>Description</Text>
+            <Text style={[styles.th, { flex: 1, textAlign: "right" }]}>Qty</Text>
+            <Text style={[styles.th, { flex: 1.5, textAlign: "right" }]}>Rate</Text>
+            <Text style={[styles.th, { flex: 1.5, textAlign: "right" }]}>Amount</Text>
+          </View>
+          {invoice.lineItems.map((it, idx) => (
+            <View key={idx} style={styles.tr}>
+              <Text style={[styles.td, { flex: 4 }]}>{it.description || "—"}</Text>
+              <Text style={[styles.td, { flex: 1, textAlign: "right" }]}>{it.quantity}</Text>
+              <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.rate))}</Text>
+              <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.amount || it.quantity * it.rate))}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.totals}>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Subtotal</Text>
+            <Text>{fmt(subtotal)}</Text>
+          </View>
+          {tax > 0 ? (
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Tax · {tax}%</Text>
+              <Text>{fmt(subtotal * tax / 100)}</Text>
+            </View>
+          ) : null}
+          <View style={styles.grandTotal}>
+            <Text>Total</Text>
+            <Text>{fmt(total)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <Text>Payment terms: {paymentTerms}. Please remit by {fmtDate(invoice.dueDate)}.</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}

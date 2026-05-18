@@ -1,0 +1,37 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { renderToBuffer } from "@react-pdf/renderer";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { invoices } from "@/lib/db/schema";
+import { requireSession } from "@/lib/auth/workspace";
+import { InvoicePDF } from "@/lib/pdf/invoice-pdf";
+
+export const runtime = "nodejs";
+
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await requireSession();
+
+  const [invoice] = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, params.id), eq(invoices.workspaceId, session.workspace.id)))
+    .limit(1);
+
+  if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const buffer = await renderToBuffer(
+    <InvoicePDF
+      invoice={invoice}
+      workspaceName={session.workspace.name}
+      paymentTerms={session.workspace.defaultPaymentTerms}
+    />
+  );
+
+  return new NextResponse(new Uint8Array(buffer), {
+    headers: {
+      "content-type": "application/pdf",
+      "content-disposition": `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+      "cache-control": "no-store",
+    },
+  });
+}
