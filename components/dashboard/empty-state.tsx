@@ -1,33 +1,55 @@
-import { cn } from "@/lib/utils";
-
 export function EmptyState({
   icon,
   title,
   description,
   action,
-  className,
 }: {
   icon?: React.ReactNode;
   title: string;
   description?: string;
   action?: React.ReactNode;
-  className?: string;
 }) {
   return (
     <div
-      className={cn(
-        "flex flex-col items-center justify-center rounded-lg border-hairline border-border bg-surface py-14 px-6 text-center",
-        className
-      )}
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px 28px",
+        gap: 14,
+        textAlign: "center",
+      }}
     >
       {icon ? (
-        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: "50%",
+            background: "var(--cream-deep)",
+            color: "var(--sign-green)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           {icon}
         </div>
       ) : null}
-      <div className="text-sm font-medium">{title}</div>
-      {description ? <div className="mt-1 text-xs text-muted-foreground">{description}</div> : null}
-      {action ? <div className="mt-4">{action}</div> : null}
+      <div
+        className="serif"
+        style={{ fontSize: 24, lineHeight: 1.1, color: "var(--ink)", fontStyle: "italic" }}
+      >
+        {title}
+      </div>
+      {description ? (
+        <div style={{ fontSize: 14, color: "var(--ink-soft)", maxWidth: 320, lineHeight: 1.5 }}>
+          {description}
+        </div>
+      ) : null}
+      {action ? <div style={{ marginTop: 4 }}>{action}</div> : null}
     </div>
   );
 }

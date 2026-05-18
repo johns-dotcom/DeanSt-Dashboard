@@ -1,75 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --bg-base: 60 8% 96%;          /* #f5f5f3 */
-    --bg-surface: 0 0% 100%;       /* #ffffff */
-    --bg-hover: 60 6% 94%;         /* #f0f0ee */
-    --border: 30 3% 86%;
-    --foreground: 30 5% 12%;
-    --muted: 30 4% 90%;
-    --muted-foreground: 30 4% 38%;
-    --primary: 30 6% 14%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 30 4% 90%;
-    --accent-foreground: 30 5% 14%;
-    --success: 142 50% 92%;
-    --success-foreground: 142 60% 22%;
-    --warning: 38 90% 92%;
-    --warning-foreground: 28 75% 28%;
-    --danger: 0 75% 94%;
-    --danger-foreground: 0 60% 36%;
-    --info: 212 80% 94%;
-    --info-foreground: 212 70% 32%;
+    --sign-green: #0a3a1c;
+    --sign-green-soft: #1f5234;
+    --cream: #f1ebdf;
+    --cream-light: #f7f2e8;
+    --cream-deep: #e6dfd0;
+    --paper: #faf6ee;
+    --ink: #1a1612;
+    --ink-soft: rgba(26, 22, 18, 0.62);
+    --ink-faint: rgba(26, 22, 18, 0.38);
+    --hair: rgba(26, 22, 18, 0.10);
+    --accent: #c96442;
   }
 
-  .dark {
-    --bg-base: 0 0% 6%;            /* #0f0f0f */
-    --bg-surface: 0 0% 10%;        /* #1a1a1a */
-    --bg-hover: 0 0% 16%;          /* #2a2a2a */
-    --border: 0 0% 18%;
-    --foreground: 0 0% 92%;
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 60%;
-    --primary: 0 0% 92%;
-    --primary-foreground: 0 0% 8%;
-    --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 92%;
-    --success: 142 40% 18%;
-    --success-foreground: 142 60% 75%;
-    --warning: 38 50% 18%;
-    --warning-foreground: 38 80% 75%;
-    --danger: 0 50% 22%;
-    --danger-foreground: 0 70% 80%;
-    --info: 212 50% 22%;
-    --info-foreground: 212 70% 80%;
+  [data-theme="dark"] {
+    --sign-green: #2d6b46;
+    --sign-green-soft: #3d8359;
+    --cream: #14110d;
+    --cream-light: #1b1813;
+    --cream-deep: #0e0c09;
+    --paper: #1f1c17;
+    --ink: #f1ebdf;
+    --ink-soft: rgba(241, 235, 223, 0.65);
+    --ink-faint: rgba(241, 235, 223, 0.38);
+    --hair: rgba(241, 235, 223, 0.10);
   }
 
   html, body {
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
     font-weight: 400;
-    background: hsl(var(--bg-base));
-    color: hsl(var(--foreground));
+    background: var(--cream);
+    color: var(--ink);
     -webkit-font-smoothing: antialiased;
   }
 
-  *, *::before, *::after {
-    border-color: hsl(var(--border));
-  }
-
-  /* hairline borders */
-  .border-hairline { border-width: 0.5px; }
+  * { border-color: var(--hair); }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--hair); border-radius: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
 }
 
 @layer components {
-  .pill {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  .serif {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
   }
-  .table-row-hover tbody tr:hover { background: hsl(var(--bg-hover)); }
+
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    text-transform: uppercase;
+  }
+
+  .border-hairline { border-width: 1px; border-color: var(--hair); }
+  .divide-y-hairline > * + * { border-top: 1px solid var(--hair); }
 }

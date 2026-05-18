@@ -1,21 +1,66 @@
-import { cn } from "@/lib/utils";
+import { SignPlate } from "@/components/brand/sign-plate";
+import { Eyebrow } from "@/components/brand/eyebrow";
 
 export function StatCard({
   label,
   value,
-  hint,
-  className,
+  prefix,
+  sub,
+  plate,
 }: {
   label: string;
   value: React.ReactNode;
-  hint?: React.ReactNode;
-  className?: string;
+  prefix?: string;
+  sub?: React.ReactNode;
+  plate?: { label: string; sub: string };
 }) {
   return (
-    <div className={cn("rounded-md bg-muted/40 px-4 py-3.5", className)}>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-[22px] font-medium leading-tight">{value}</div>
-      {hint ? <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div> : null}
-    </div>
+    <section
+      style={{
+        background: "var(--paper)",
+        border: "1px solid var(--hair)",
+        borderRadius: 10,
+        padding: "22px 24px 24px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+        }}
+      >
+        <Eyebrow size={10.5}>{label}</Eyebrow>
+        {plate ? <SignPlate size={0.55} label={plate.label} sub={plate.sub} /> : null}
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 6,
+          lineHeight: 1,
+          fontFamily: '"DM Sans", sans-serif',
+          letterSpacing: "-0.03em",
+          color: "var(--ink)",
+        }}
+      >
+        {prefix ? (
+          <span style={{ fontSize: 26, fontWeight: 500, color: "var(--ink-soft)" }}>{prefix}</span>
+        ) : null}
+        <span style={{ fontSize: 48, fontWeight: 700 }}>{value}</span>
+      </div>
+
+      {sub ? (
+        <div
+          className="serif"
+          style={{ fontSize: 18, color: "var(--ink-soft)", marginTop: 10, fontStyle: "italic" }}
+        >
+          {sub}
+        </div>
+      ) : null}
+    </section>
   );
 }

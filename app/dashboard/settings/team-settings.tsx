@@ -2,11 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Trash2, Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/dashboard/badge";
+import { Eyebrow } from "@/components/brand/eyebrow";
+import { SendIcon, TrashIcon } from "@/components/brand/icons";
 import {
   inviteMember,
   resendInvite,
@@ -24,11 +21,158 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "view_only", label: "View only" },
 ];
 
-const ROLE_TONE: Record<Role, "success" | "info" | "neutral"> = {
-  admin: "success",
-  member: "info",
-  view_only: "neutral",
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "12px 14px",
+  background: "var(--cream-light)",
+  border: "1px solid var(--hair)",
+  borderRadius: 8,
+  fontSize: 15,
+  color: "var(--ink)",
+  fontFamily: "inherit",
+  outline: "none",
 };
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  flex: "none",
+  width: 140,
+  appearance: "none",
+  backgroundImage:
+    "linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%)",
+  backgroundPosition:
+    "calc(100% - 14px) 17px, calc(100% - 9px) 17px",
+  backgroundSize: "5px 5px",
+  backgroundRepeat: "no-repeat",
+  paddingRight: 32,
+};
+
+const inviteButton: React.CSSProperties = {
+  padding: "0 22px",
+  background: "var(--ink)",
+  color: "var(--cream)",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 14,
+  fontWeight: 500,
+  letterSpacing: "0.02em",
+  cursor: "pointer",
+  height: 44,
+};
+
+const iconButton: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 6,
+  border: "1px solid var(--hair)",
+  background: "var(--cream-light)",
+  color: "var(--ink-soft)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        background: "var(--paper)",
+        border: "1px solid var(--hair)",
+        borderRadius: 10,
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MemberRow({
+  initial,
+  name,
+  email,
+  pending,
+  right,
+  last,
+  isYou,
+}: {
+  initial: string;
+  name: string;
+  email: string;
+  pending?: boolean;
+  right: React.ReactNode;
+  last?: boolean;
+  isYou?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "14px 22px",
+        borderBottom: last ? "none" : "1px solid var(--hair)",
+      }}
+    >
+      <span
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: "50%",
+          background: pending ? "var(--cream-deep)" : "var(--sign-green)",
+          color: pending ? "var(--ink-soft)" : "#fff",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 15,
+          fontWeight: 600,
+          flex: "none",
+        }}
+      >
+        {initial}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--ink)" }}>
+          {name}
+          {isYou ? (
+            <span
+              className="mono"
+              style={{
+                fontSize: 9.5,
+                letterSpacing: "0.2em",
+                color: "var(--ink-faint)",
+                marginLeft: 8,
+              }}
+            >
+              (you)
+            </span>
+          ) : null}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>{email}</div>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function RolePill({ role }: { role: Role }) {
+  return (
+    <span
+      className="mono"
+      style={{
+        background: "rgba(10,58,28,0.10)",
+        color: "var(--sign-green)",
+        padding: "6px 12px",
+        borderRadius: 999,
+        fontSize: 10,
+        letterSpacing: "0.24em",
+      }}
+    >
+      {role.replace("_", " ")}
+    </span>
+  );
+}
 
 export function TeamSettings({
   members,
@@ -43,7 +187,7 @@ export function TeamSettings({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -69,8 +213,7 @@ export function TeamSettings({
   function handleRevoke(id: string) {
     if (!confirm("Revoke this invite?")) return;
     startTransition(async () => {
-      const r = await revokeInvite(id);
-      void r;
+      await revokeInvite(id);
       toast.success("Invite revoked");
     });
   }
@@ -91,73 +234,88 @@ export function TeamSettings({
   }
 
   return (
-    <div className="space-y-5">
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       {isAdmin ? (
-        <form onSubmit={handleInvite} className="flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[200px]">
-            <Input type="email" placeholder="invite@deanst.co" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button type="submit" disabled={pending}>Invite</Button>
-        </form>
+        <Card>
+          <form onSubmit={handleInvite} style={{ display: "flex", gap: 12, padding: 22 }}>
+            <input
+              type="email"
+              placeholder="invite@deanst.co"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+            />
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)} style={selectStyle}>
+              {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <button type="submit" style={inviteButton}>Invite</button>
+          </form>
+        </Card>
       ) : null}
 
       <div>
-        <h3 className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Active members</h3>
-        <ul className="divide-y-hairline divide-border rounded-md border-hairline border-border bg-surface">
-          {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                {m.avatarInitials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm">{m.displayName}{m.id === currentMemberId ? <span className="ml-2 text-xs text-muted-foreground">(you)</span> : null}</div>
-                <div className="truncate text-xs text-muted-foreground">{m.email}</div>
-              </div>
-              {isAdmin && m.id !== currentMemberId ? (
-                <>
-                  <Select value={m.role} onValueChange={(v) => handleRoleChange(m.id, v as Role)}>
-                    <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <button onClick={() => handleRemove(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-hover hover:text-foreground" aria-label="Remove">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              ) : (
-                <Badge tone={ROLE_TONE[m.role]}>{m.role.replace("_", " ")}</Badge>
-              )}
-            </li>
-          ))}
-        </ul>
+        <Eyebrow size={10}>Active members</Eyebrow>
+        <div style={{ marginTop: 10 }}>
+          <Card>
+            {members.map((m, i) => (
+              <MemberRow
+                key={m.id}
+                initial={m.avatarInitials.charAt(0)}
+                name={m.displayName}
+                email={m.email}
+                isYou={m.id === currentMemberId}
+                last={i === members.length - 1}
+                right={
+                  isAdmin && m.id !== currentMemberId ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <select
+                        value={m.role}
+                        onChange={(e) => handleRoleChange(m.id, e.target.value as Role)}
+                        style={{ ...selectStyle, width: 130, height: 36, fontSize: 13 }}
+                      >
+                        {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                      <button onClick={() => handleRemove(m.id)} style={iconButton} aria-label="Remove">
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  ) : (
+                    <RolePill role={m.role} />
+                  )
+                }
+              />
+            ))}
+          </Card>
+        </div>
       </div>
 
       {isAdmin && invites.length > 0 ? (
         <div>
-          <h3 className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Pending invites</h3>
-          <ul className="divide-y-hairline divide-border rounded-md border-hairline border-border bg-surface">
-            {invites.map((i) => (
-              <li key={i.id} className="flex items-center gap-3 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{i.email}</div>
-                  <div className="text-xs text-muted-foreground">{i.role.replace("_", " ")}</div>
-                </div>
-                <button onClick={() => handleResend(i.id)} className="rounded p-1.5 text-muted-foreground hover:bg-hover hover:text-foreground" aria-label="Resend">
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => handleRevoke(i.id)} className="rounded p-1.5 text-muted-foreground hover:bg-hover hover:text-foreground" aria-label="Revoke">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <Eyebrow size={10}>Pending invites</Eyebrow>
+          <div style={{ marginTop: 10 }}>
+            <Card>
+              {invites.map((i, idx) => (
+                <MemberRow
+                  key={i.id}
+                  initial={i.email.charAt(0).toUpperCase()}
+                  name={i.email}
+                  email={i.role.replace("_", " ")}
+                  pending
+                  last={idx === invites.length - 1}
+                  right={
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => handleResend(i.id)} style={iconButton} aria-label="Resend">
+                        <SendIcon />
+                      </button>
+                      <button onClick={() => handleRevoke(i.id)} style={iconButton} aria-label="Revoke">
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  }
+                />
+              ))}
+            </Card>
+          </div>
         </div>
       ) : null}
     </div>

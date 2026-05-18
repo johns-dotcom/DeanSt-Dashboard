@@ -1,9 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { MoonIcon, SunIcon } from "@/components/brand/icons";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Overview",
@@ -18,27 +17,69 @@ const TITLES: Record<string, string> = {
 export function Topbar() {
   const pathname = usePathname();
   const title = TITLES[pathname] ?? "Dashboard";
-  const [dark, setDark] = useState<boolean | null>(null);
+  const [dark, setDark] = useState<boolean>(false);
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
+    setDark(document.documentElement.dataset.theme === "dark");
   }, []);
 
   function toggleDark() {
-    const next = !document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", next);
+    const next = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = next ? "dark" : "";
     localStorage.setItem("deanst.theme", next ? "dark" : "light");
     setDark(next);
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b-hairline border-border bg-surface/80 px-6 backdrop-blur md:px-8">
-      <h1 className="text-sm font-medium">{title}</h1>
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={toggleDark} aria-label="Toggle theme">
-          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
+    <header
+      style={{
+        padding: "34px 48px 26px",
+        borderBottom: "1px solid var(--hair)",
+        background: "var(--cream)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+      }}
+    >
+      <div>
+        <div
+          className="mono"
+          style={{ fontSize: 10, letterSpacing: "0.36em", color: "var(--ink-faint)" }}
+        >
+          Dean St · Operations
+        </div>
+        <h1
+          style={{
+            fontFamily: '"DM Sans", sans-serif',
+            fontSize: 30,
+            fontWeight: 600,
+            letterSpacing: "-0.02em",
+            marginTop: 6,
+            color: "var(--ink)",
+          }}
+        >
+          {title}
+        </h1>
       </div>
+
+      <button
+        onClick={toggleDark}
+        aria-label="Toggle theme"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: "50%",
+          border: "1px solid var(--hair)",
+          background: "var(--cream-light)",
+          color: "var(--ink-soft)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+        }}
+      >
+        {dark ? <SunIcon /> : <MoonIcon />}
+      </button>
     </header>
   );
 }

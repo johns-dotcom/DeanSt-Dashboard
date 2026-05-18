@@ -2,9 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { updateDisplayName } from "./actions";
 
 export function ProfileForm({ displayName }: { displayName: string }) {
@@ -14,17 +11,47 @@ export function ProfileForm({ displayName }: { displayName: string }) {
   function save() {
     startTransition(async () => {
       const r = await updateDisplayName(name);
-      if ("error" in r && r.error) toast.error(r.error); else toast.success("Profile updated");
+      if ("error" in r && r.error) toast.error(r.error);
+      else toast.success("Profile updated");
     });
   }
 
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "12px 14px",
+    background: "var(--cream-light)",
+    border: "1px solid var(--hair)",
+    borderRadius: 8,
+    fontSize: 15,
+    color: "var(--ink)",
+    fontFamily: "inherit",
+    outline: "none",
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: "0 22px",
+    background: "var(--sign-green)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: "0.02em",
+    cursor: pending || name === displayName ? "not-allowed" : "pointer",
+    opacity: pending || name === displayName ? 0.5 : 1,
+    height: 44,
+  };
+
   return (
-    <div className="flex items-end gap-3">
-      <div className="flex-1 space-y-1">
-        <Label htmlFor="dn">Display name</Label>
-        <Input id="dn" value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <Button onClick={save} disabled={pending || name === displayName}>{pending ? "Saving…" : "Save"}</Button>
+    <div style={{ display: "flex", gap: 12 }}>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        style={inputStyle}
+      />
+      <button onClick={save} disabled={pending || name === displayName} style={buttonStyle}>
+        {pending ? "Saving…" : "Save"}
+      </button>
     </div>
   );
 }

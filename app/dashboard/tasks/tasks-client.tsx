@@ -58,7 +58,7 @@ export function TasksClient({
               icon={<CheckSquare className="h-4 w-4" />}
               title="Nothing assigned to you"
               description="Use Add Task to create one."
-              className="py-8"
+
             />
           ) : (
             <div className="space-y-1">
@@ -73,7 +73,7 @@ export function TasksClient({
               icon={<CheckSquare className="h-4 w-4" />}
               title="No delegated tasks"
               description="Use Assign Task to delegate to a teammate."
-              className="py-8"
+
             />
           ) : (
             <div className="space-y-1">

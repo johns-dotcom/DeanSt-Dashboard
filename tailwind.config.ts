@@ -1,57 +1,55 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class"],
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     container: { center: true, padding: "1rem" },
     extend: {
       colors: {
-        base: "hsl(var(--bg-base) / <alpha-value>)",
-        surface: "hsl(var(--bg-surface) / <alpha-value>)",
-        hover: "hsl(var(--bg-hover) / <alpha-value>)",
-        border: "hsl(var(--border) / <alpha-value>)",
+        cream: "var(--cream)",
+        "cream-light": "var(--cream-light)",
+        "cream-deep": "var(--cream-deep)",
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        "ink-soft": "var(--ink-soft)",
+        "ink-faint": "var(--ink-faint)",
+        hair: "var(--hair)",
+        sign: "var(--sign-green)",
+        "sign-soft": "var(--sign-green-soft)",
+        accent: "var(--accent)",
+        // Legacy compatibility — many existing components reference these
+        base: "var(--cream)",
+        surface: "var(--paper)",
+        hover: "var(--cream-deep)",
+        border: "var(--hair)",
+        foreground: "var(--ink)",
         muted: {
-          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
-          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
+          DEFAULT: "var(--cream-deep)",
+          foreground: "var(--ink-soft)",
         },
-        foreground: "hsl(var(--foreground) / <alpha-value>)",
         primary: {
-          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
-          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+          DEFAULT: "var(--sign-green)",
+          foreground: "#ffffff",
         },
-        accent: {
-          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
-          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
-        },
-        success: {
-          DEFAULT: "hsl(var(--success) / <alpha-value>)",
-          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
-        },
-        warning: {
-          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
-          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
-        },
-        danger: {
-          DEFAULT: "hsl(var(--danger) / <alpha-value>)",
-          foreground: "hsl(var(--danger-foreground) / <alpha-value>)",
-        },
-        info: {
-          DEFAULT: "hsl(var(--info) / <alpha-value>)",
-          foreground: "hsl(var(--info-foreground) / <alpha-value>)",
-        },
+        success: { DEFAULT: "var(--sign-green)", foreground: "#ffffff" },
+        warning: { DEFAULT: "rgba(201,100,66,0.18)", foreground: "var(--accent)" },
+        danger: { DEFAULT: "rgba(160,30,30,0.12)", foreground: "#a01e1e" },
+        info: { DEFAULT: "rgba(10,58,28,0.10)", foreground: "var(--sign-green)" },
+      },
+      fontFamily: {
+        sans: ['"DM Sans"', "ui-sans-serif", "system-ui"],
+        serif: ['"Cormorant Garamond"', "Georgia", "serif"],
+        mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
       },
       borderRadius: {
         sm: "6px",
         DEFAULT: "8px",
-        md: "10px",
-        lg: "12px",
+        md: "8px",
+        lg: "10px",
       },
-      fontWeight: {
-        normal: "400",
-        medium: "500",
-      },
-      borderWidth: { hairline: "0.5px" },
+      fontWeight: { normal: "400", medium: "500", semibold: "600", bold: "700" },
+      borderWidth: { hairline: "1px" },
       transitionDuration: { DEFAULT: "150ms" },
     },
   },

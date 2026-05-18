@@ -1,45 +1,73 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Switch } from "@/components/ui/switch";
+import { Toggle } from "@/components/brand/toggle";
+
+function SettingRow({
+  title,
+  sub,
+  control,
+  last,
+}: {
+  title: string;
+  sub: string;
+  control: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "18px 26px",
+        borderBottom: last ? "none" : "1px solid var(--hair)",
+        gap: 24,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 15.5, fontWeight: 500, color: "var(--ink)" }}>{title}</div>
+        <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 3 }}>{sub}</div>
+      </div>
+      {control}
+    </div>
+  );
+}
 
 export function AppearanceSettings() {
   const [dark, setDark] = useState(false);
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-    setCompact(document.documentElement.classList.contains("compact"));
+    setDark(document.documentElement.dataset.theme === "dark");
+    setCompact(document.documentElement.dataset.compact === "true");
   }, []);
 
   function toggleDark(next: boolean) {
-    document.documentElement.classList.toggle("dark", next);
+    document.documentElement.dataset.theme = next ? "dark" : "";
     localStorage.setItem("deanst.theme", next ? "dark" : "light");
     setDark(next);
   }
 
   function toggleCompact(next: boolean) {
-    document.documentElement.classList.toggle("compact", next);
+    document.documentElement.dataset.compact = next ? "true" : "";
     localStorage.setItem("deanst.compact", next ? "1" : "0");
     setCompact(next);
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm">Dark mode</div>
-          <div className="text-xs text-muted-foreground">Use the dark color scheme.</div>
-        </div>
-        <Switch checked={dark} onCheckedChange={toggleDark} />
-      </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm">Compact view</div>
-          <div className="text-xs text-muted-foreground">Tighter row spacing across tables.</div>
-        </div>
-        <Switch checked={compact} onCheckedChange={toggleCompact} />
-      </div>
-    </div>
+    <>
+      <SettingRow
+        title="Dark mode"
+        sub="Switch the surface to ink and cream-on-shadow."
+        control={<Toggle checked={dark} onCheckedChange={toggleDark} ariaLabel="Toggle dark mode" />}
+      />
+      <SettingRow
+        title="Compact view"
+        sub="Tighter row spacing across tables."
+        control={<Toggle checked={compact} onCheckedChange={toggleCompact} ariaLabel="Toggle compact view" />}
+        last
+      />
+    </>
   );
 }

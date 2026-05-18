@@ -3,123 +3,246 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { SignPlate } from "@/components/brand/sign-plate";
 import {
-  LayoutDashboard,
-  FileText,
-  Briefcase,
-  Users,
-  CheckSquare,
-  FolderClosed,
-  Settings,
-  LogOut,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  GridIcon,
+  DocIcon,
+  BriefcaseIcon,
+  UsersIcon,
+  CheckIcon,
+  FolderIcon,
+  GearIcon,
+} from "@/components/brand/icons";
 import type { WorkspaceMember } from "@/lib/db/schema";
 
-const NAV: { label: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: "overdue" | "open" }[] = [
-  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Invoices", href: "/dashboard/invoices", icon: FileText, badgeKey: "overdue" },
-  { label: "Deals", href: "/dashboard/deals", icon: Briefcase },
-  { label: "Contacts", href: "/dashboard/contacts", icon: Users },
-  { label: "Tasks", href: "/dashboard/tasks", icon: CheckSquare, badgeKey: "open" },
-  { label: "Documents", href: "/dashboard/documents", icon: FolderClosed },
+type NavEntry = {
+  label: string;
+  href: string;
+  Icon: React.ComponentType<{ className?: string }>;
+};
+
+const WORKSPACE_NAV: NavEntry[] = [
+  { label: "Overview", href: "/dashboard", Icon: GridIcon },
+  { label: "Invoices", href: "/dashboard/invoices", Icon: DocIcon },
+  { label: "Deals", href: "/dashboard/deals", Icon: BriefcaseIcon },
+  { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
+  { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
+  { label: "Documents", href: "/dashboard/documents", Icon: FolderIcon },
 ];
+
+function NavLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="mono"
+      style={{
+        fontSize: 10,
+        letterSpacing: "0.34em",
+        color: "var(--ink-faint)",
+        padding: "0 14px",
+        marginBottom: 8,
+        marginTop: 4,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function NavItem({
+  href,
+  label,
+  Icon,
+  active,
+}: NavEntry & { active: boolean }) {
+  return (
+    <Link
+      href={href}
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        width: "100%",
+        padding: "10px 14px",
+        borderRadius: 6,
+        fontSize: 14.5,
+        fontWeight: active ? 600 : 500,
+        background: active ? "var(--cream-deep)" : "transparent",
+        color: "var(--ink)",
+        textDecoration: "none",
+        transition: "background 120ms ease",
+      }}
+      className="group"
+    >
+      {active ? (
+        <span
+          style={{
+            position: "absolute",
+            left: -1,
+            top: 8,
+            bottom: 8,
+            width: 3,
+            background: "var(--sign-green)",
+            borderRadius: 2,
+          }}
+        />
+      ) : null}
+      <span
+        style={{
+          color: active ? "var(--sign-green)" : "var(--ink-soft)",
+          display: "flex",
+        }}
+      >
+        <Icon />
+      </span>
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export function Sidebar({
   member,
-  workspaceName,
   userEmail,
-  overdueCount,
-  openTaskCount,
 }: {
   member: WorkspaceMember;
   workspaceName: string;
   userEmail: string;
-  overdueCount: number;
-  openTaskCount: number;
+  overdueCount?: number;
+  openTaskCount?: number;
 }) {
   const pathname = usePathname();
-  const badge = (key?: "overdue" | "open") => {
-    if (key === "overdue") return overdueCount > 0 ? overdueCount : null;
-    if (key === "open") return openTaskCount > 0 ? openTaskCount : null;
-    return null;
-  };
 
   return (
-    <aside className="hidden w-[220px] shrink-0 flex-col border-r-hairline border-border bg-surface md:flex">
-      <div className="flex h-14 items-center gap-2 border-b-hairline border-border px-5">
-        <div className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-medium">D</div>
-        <div className="leading-tight">
-          <div className="text-sm font-medium">{workspaceName}</div>
-          <div className="text-[10px] text-muted-foreground">Operations</div>
+    <aside
+      className="hidden md:flex"
+      style={{
+        width: 280,
+        flex: "none",
+        background: "var(--cream-light)",
+        borderRight: "1px solid var(--hair)",
+        padding: "32px 18px 24px",
+        flexDirection: "column",
+        gap: 24,
+        boxSizing: "border-box",
+        minHeight: "100vh",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "0 6px 8px" }}>
+        <SignPlate size={1} />
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+          <span className="serif" style={{ fontSize: 22 }}>Operations</span>
+          <span
+            className="mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.3em",
+              color: "var(--ink-faint)",
+              marginTop: 2,
+            }}
+          >
+            NYC · Est MMXXV
+          </span>
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
-        <div className="px-2 pb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">Workspace</div>
-        <ul className="space-y-0.5">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
-            const count = badge(item.badgeKey);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "group flex items-center justify-between rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-hover",
-                    active && "bg-hover text-foreground"
-                  )}
-                >
-                  <span className="inline-flex items-center gap-2.5">
-                    <Icon className="h-4 w-4 opacity-70 group-hover:opacity-100" />
-                    {item.label}
-                  </span>
-                  {count ? (
-                    <span className={cn(
-                      "pill",
-                      item.badgeKey === "overdue" ? "bg-danger text-danger-foreground" : "bg-info text-info-foreground"
-                    )}>{count}</span>
-                  ) : null}
-                </Link>
-              </li>
-            );
+      <div style={{ height: 1, background: "var(--hair)", margin: "0 6px" }} />
+
+      <div>
+        <NavLabel>Workspace</NavLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {WORKSPACE_NAV.map((item) => {
+            const active =
+              item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+            return <NavItem key={item.href} {...item} active={active} />;
           })}
-        </ul>
+        </div>
+      </div>
 
-        <div className="mt-6 px-2 pb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">Settings</div>
-        <ul className="space-y-0.5">
-          <li>
-            <Link
-              href="/dashboard/settings"
-              className={cn(
-                "group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-hover",
-                pathname.startsWith("/dashboard/settings") && "bg-hover text-foreground"
-              )}
-            >
-              <Settings className="h-4 w-4 opacity-70 group-hover:opacity-100" />
-              Settings
-            </Link>
-          </li>
-        </ul>
-      </nav>
+      <div>
+        <NavLabel>Settings</NavLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <NavItem
+            href="/dashboard/settings"
+            label="Settings"
+            Icon={GearIcon}
+            active={pathname.startsWith("/dashboard/settings")}
+          />
+        </div>
+      </div>
 
-      <div className="border-t-hairline border-border p-3">
-        <div className="flex items-center gap-2.5 px-1.5 pb-2.5">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-medium uppercase">
+      <div style={{ marginTop: "auto", paddingTop: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "0 6px 12px",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              height: 28,
+              width: 28,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              background: "var(--sign-green)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
             {member.avatarInitials}
           </span>
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-sm">{member.displayName}</div>
-            <div className="truncate text-[10px] text-muted-foreground">{userEmail}</div>
+          <div style={{ minWidth: 0, lineHeight: 1.2 }}>
+            <div style={{ fontSize: 13.5 }}>{member.displayName}</div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--ink-faint)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: 220,
+              }}
+            >
+              {userEmail}
+            </div>
           </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+          className="mono"
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "6px 14px",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--ink-faint)",
+            fontSize: 9,
+            letterSpacing: "0.32em",
+          }}
         >
-          <LogOut className="h-3.5 w-3.5" /> Sign out
+          Sign out
         </button>
+        <div style={{ padding: "10px 14px 0" }}>
+          <div
+            className="mono"
+            style={{ fontSize: 9, letterSpacing: "0.32em", color: "var(--ink-faint)" }}
+          >
+            v0.1 · Internal
+          </div>
+          <div
+            className="serif"
+            style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, fontStyle: "italic" }}
+          >
+            Turning vision into velocity
+          </div>
+        </div>
       </div>
     </aside>
   );
