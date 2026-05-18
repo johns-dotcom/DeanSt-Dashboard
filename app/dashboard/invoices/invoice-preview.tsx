@@ -3,11 +3,21 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import type { DraftInvoice } from "./invoices-client";
 
 const PAYABLE_TO = [
-  "DEAN STREET CONSULTING LLC",
-  "NEW YORK, NY",
+  "DEAN ST CO",
   "",
   "CONTACT: JOHN SKEAD",
   "EMAIL: john@deanst.co",
+  "",
+  "PAYMENT METHOD",
+  "JP Morgan Chase",
+  "31250 Palos Verdes Dr W",
+  "Rancho Palos Verdes, CA, 90275",
+  "",
+  "Account: 953162333",
+  "Routing: 322271627",
+  "Zelle: (310) 755-8857",
+  "",
+  "Payable to Jesse Allen",
 ];
 
 export function InvoicePreviewPanel({
