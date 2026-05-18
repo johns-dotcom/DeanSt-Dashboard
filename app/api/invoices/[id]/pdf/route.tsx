@@ -8,8 +8,9 @@ import { InvoicePDF } from "@/lib/pdf/invoice-pdf";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await requireSession();
+  const inline = req.nextUrl.searchParams.get("inline") === "1";
 
   const [invoice] = await db
     .select()
@@ -30,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${invoice.invoiceNumber}.pdf"`,
       "cache-control": "no-store",
     },
   });

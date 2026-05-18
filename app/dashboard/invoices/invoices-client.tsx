@@ -1,63 +1,77 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Plus, Eye, Download, Trash2, FileText } from "lucide-react";
+import { Eye, Pencil, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Badge, statusBadgeTone } from "@/components/dashboard/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FilterPills } from "@/components/dashboard/filter-pills";
-import { EmptyState } from "@/components/dashboard/empty-state";
-import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
-import { InvoiceForm } from "./invoice-form";
-import { InvoicePreview } from "./invoice-preview";
+import { Eyebrow } from "@/components/brand/eyebrow";
+import { PageFooter } from "@/components/brand/page-footer";
+import { InvoiceFormPanel } from "./invoice-form";
+import { InvoicePreviewPanel } from "./invoice-preview";
 import { deleteInvoice } from "./actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { Invoice } from "@/lib/db/schema";
+import type { Invoice, LineItem } from "@/lib/db/schema";
 
-type Filter = "all" | "invoice" | "reimbursement" | "overdue";
+export interface DraftInvoice {
+  client: string;
+  address: string;
+  description: string;
+  lineItems: LineItem[];
+  dueDate: string;
+  status: Invoice["status"];
+  type: Invoice["type"];
+}
+
+const emptyDraft: DraftInvoice = {
+  client: "",
+  address: "",
+  description: "",
+  lineItems: [{ description: "", quantity: 1, rate: 0, amount: 0 }],
+  dueDate: "",
+  status: "draft",
+  type: "invoice",
+};
+
+function toDraft(inv: Invoice): DraftInvoice {
+  return {
+    client: inv.client,
+    address: "",
+    description: inv.description ?? "",
+    lineItems: inv.lineItems?.length ? inv.lineItems : [{ description: "", quantity: 1, rate: 0, amount: 0 }],
+    dueDate: inv.dueDate ?? "",
+    status: inv.status,
+    type: inv.type,
+  };
+}
 
 export function InvoicesClient({
   invoices,
   workspaceName,
   paymentTerms,
+  nextInvoiceNumber,
 }: {
   invoices: Invoice[];
   workspaceName: string;
   paymentTerms: string;
+  nextInvoiceNumber: string;
 }) {
-  const [filter, setFilter] = useState<Filter>("all");
-  const [query, setQuery] = useState("");
-  const [openNew, setOpenNew] = useState(false);
-  const [editing, setEditing] = useState<Invoice | null>(null);
-  const [previewing, setPreviewing] = useState<Invoice | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<DraftInvoice>(emptyDraft);
   const [, startTransition] = useTransition();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return invoices.filter((inv) => {
-      if (filter === "invoice" && inv.type !== "invoice") return false;
-      if (filter === "reimbursement" && inv.type !== "reimbursement") return false;
-      if (filter === "overdue" && inv.status !== "overdue") return false;
-      if (q && !`${inv.client} ${inv.invoiceNumber} ${inv.description ?? ""}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [invoices, filter, query]);
+  const editing = useMemo(
+    () => (editingId ? invoices.find((i) => i.id === editingId) ?? null : null),
+    [editingId, invoices]
+  );
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const thisMonth = (d: string) => {
-      const dt = new Date(d);
-      return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
-    };
-    return {
-      outstanding: invoices.filter((i) => ["pending", "overdue"].includes(i.status)).reduce((s, i) => s + Number(i.total), 0),
-      overdue: invoices.filter((i) => i.status === "overdue").reduce((s, i) => s + Number(i.total), 0),
-      paidThisMonth: invoices.filter((i) => i.status === "paid" && thisMonth(i.issuedDate)).reduce((s, i) => s + Number(i.total), 0),
-      reimbursementsPending: invoices.filter((i) => i.type === "reimbursement" && i.status !== "paid").reduce((s, i) => s + Number(i.total), 0),
-    };
-  }, [invoices]);
+  function startNew() {
+    setEditingId(null);
+    setDraft(emptyDraft);
+  }
+
+  function startEdit(inv: Invoice) {
+    setEditingId(inv.id);
+    setDraft(toDraft(inv));
+  }
 
   function handleDelete(inv: Invoice) {
     if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return;
@@ -65,141 +79,251 @@ export function InvoicesClient({
       const r = await deleteInvoice(inv.id);
       void r;
       toast.success("Invoice deleted");
-      if (previewing?.id === inv.id) setPreviewing(null);
+      if (editingId === inv.id) startNew();
     });
   }
 
+  const displayNumber = editing?.invoiceNumber ?? nextInvoiceNumber;
+
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Outstanding" value={formatCurrency(stats.outstanding)} />
-        <StatCard label="Overdue" value={formatCurrency(stats.overdue)} />
-        <StatCard label="Paid this month" value={formatCurrency(stats.paidThisMonth)} />
-        <StatCard label="Reimbursements pending" value={formatCurrency(stats.reimbursementsPending)} />
+    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Eyebrow size={10} spacing={0.36}>№ 02 · Ledger</Eyebrow>
+        <Eyebrow size={10} spacing={0.32}>{editing ? `Editing ${editing.invoiceNumber}` : "Drafting new invoice"}</Eyebrow>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-1 items-center gap-3">
-          <Input
-            placeholder="Search by client, number, description…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="max-w-xs"
-          />
-          <FilterPills<Filter>
-            value={filter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "invoice", label: "Invoices" },
-              { value: "reimbursement", label: "Reimbursements" },
-              { value: "overdue", label: "Overdue" },
-            ]}
-            onChange={setFilter}
-          />
-        </div>
-        <SlideOver open={openNew} onOpenChange={setOpenNew}>
-          <Button onClick={() => setOpenNew(true)}>
-            <Plus className="h-4 w-4" /> New invoice
-          </Button>
-          <SlideOverContent title="New invoice" description="Add a billable invoice or reimbursement.">
-            <InvoiceForm onDone={() => setOpenNew(false)} />
-          </SlideOverContent>
-        </SlideOver>
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={<FileText className="h-4 w-4" />}
-          title={invoices.length === 0 ? "No invoices yet" : "No matching invoices"}
-          description={invoices.length === 0 ? "Create your first invoice to start tracking revenue." : "Try a different filter or search."}
-          action={invoices.length === 0 ? <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" /> New invoice</Button> : null}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) minmax(0, 1.45fr)", gap: 22 }}>
+        <InvoiceFormPanel
+          draft={draft}
+          setDraft={setDraft}
+          editingInvoice={editing}
+          displayNumber={displayNumber}
+          onSaved={() => { setEditingId(null); setDraft(emptyDraft); }}
+          onCancel={startNew}
         />
-      ) : (
-        <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
-          <table className="w-full text-sm table-row-hover" style={{ tableLayout: "fixed" }}>
-            <colgroup>
-              <col style={{ width: "108px" }} />
-              <col />
-              <col style={{ width: "120px" }} />
-              <col />
-              <col style={{ width: "120px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "92px" }} />
-            </colgroup>
-            <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">#</th>
-                <th className="px-3 py-2 text-left font-medium">Client</th>
-                <th className="px-3 py-2 text-left font-medium">Type</th>
-                <th className="px-3 py-2 text-left font-medium">Description</th>
-                <th className="px-3 py-2 text-right font-medium">Amount</th>
-                <th className="px-3 py-2 text-left font-medium">Issued</th>
-                <th className="px-3 py-2 text-left font-medium">Due</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-right font-medium">Actions</th>
+        <InvoicePreviewPanel
+          draft={draft}
+          number={displayNumber}
+          workspaceName={workspaceName}
+          paymentTerms={paymentTerms}
+        />
+      </div>
+
+      <section
+        style={{
+          background: "var(--paper)",
+          border: "1px solid var(--hair)",
+          borderRadius: 10,
+          overflow: "hidden",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "18px 26px",
+            borderBottom: "1px solid var(--hair)",
+          }}
+        >
+          <div>
+            <Eyebrow size={10}>Saved invoices</Eyebrow>
+            <div
+              style={{
+                fontFamily: '"DM Sans", sans-serif',
+                fontSize: 19,
+                fontWeight: 600,
+                letterSpacing: "-0.01em",
+                marginTop: 4,
+              }}
+            >
+              {invoices.length} on file
+            </div>
+          </div>
+        </header>
+
+        {invoices.length === 0 ? (
+          <div style={{ padding: "60px 26px", textAlign: "center" }}>
+            <div className="serif" style={{ fontSize: 24, color: "var(--ink)", fontStyle: "italic" }}>
+              The ledger is empty.
+            </div>
+            <div style={{ fontSize: 14, color: "var(--ink-soft)", marginTop: 6 }}>
+              Fill in the form above to create your first invoice.
+            </div>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: '"DM Sans", sans-serif' }}>
+            <thead>
+              <tr style={{ background: "var(--cream-light)" }}>
+                <Th width={90}>Invoice #</Th>
+                <Th>Bill to</Th>
+                <Th>Description</Th>
+                <Th align="right" width={140}>Amount</Th>
+                <Th width={110}>Date</Th>
+                <Th width={92}>Status</Th>
+                <Th align="right" width={140}>Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv) => (
-                <tr key={inv.id} className="border-t-hairline border-border">
-                  <td className="px-3 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
-                  <td className="px-3 py-2 truncate cursor-pointer" onClick={() => setEditing(inv)}>{inv.client}</td>
-                  <td className="px-3 py-2"><Badge tone={statusBadgeTone[inv.type]}>{inv.type}</Badge></td>
-                  <td className="px-3 py-2 truncate text-muted-foreground">{inv.description}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(Number(inv.total))}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatDate(inv.issuedDate)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatDate(inv.dueDate)}</td>
-                  <td className="px-3 py-2"><Badge tone={statusBadgeTone[inv.status]}>{inv.status}</Badge></td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <button className="rounded p-1 text-muted-foreground hover:bg-hover hover:text-foreground" onClick={() => setPreviewing(inv)} aria-label="Preview">
+              {invoices.map((inv) => (
+                <tr
+                  key={inv.id}
+                  style={{ borderTop: "1px solid var(--hair)", cursor: "pointer" }}
+                  onClick={() => startEdit(inv)}
+                >
+                  <Td>
+                    <span style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: 12.5 }}>
+                      #{inv.invoiceNumber.replace(/^[A-Z]+-?/, "")}
+                    </span>
+                  </Td>
+                  <Td>{inv.client}</Td>
+                  <Td>
+                    <span style={{ color: "var(--ink-soft)" }}>{inv.description ?? ""}</span>
+                  </Td>
+                  <Td align="right">
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {formatCurrency(Number(inv.total))}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
+                      {formatDate(inv.issuedDate, { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </Td>
+                  <Td>
+                    <StatusPill status={inv.status} />
+                  </Td>
+                  <Td align="right">
+                    <div style={{ display: "inline-flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                      <RowIcon onClick={() => startEdit(inv)} aria-label="Edit"><Pencil className="h-3.5 w-3.5" /></RowIcon>
+                      <a
+                        href={`/api/invoices/${inv.id}/pdf?inline=1`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={rowIconStyle}
+                        aria-label="View"
+                      >
                         <Eye className="h-3.5 w-3.5" />
-                      </button>
+                      </a>
                       <a
                         href={`/api/invoices/${inv.id}/pdf`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded p-1 text-muted-foreground hover:bg-hover hover:text-foreground"
-                        aria-label="Download PDF"
+                        style={rowIconStyle}
+                        aria-label="Download"
                       >
                         <Download className="h-3.5 w-3.5" />
                       </a>
-                      <button className="rounded p-1 text-muted-foreground hover:bg-hover hover:text-foreground" onClick={() => handleDelete(inv)} aria-label="Delete">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <RowIcon onClick={() => handleDelete(inv)} aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></RowIcon>
                     </div>
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </section>
 
-      {previewing ? (
-        <div className="rounded-lg border-hairline border-border bg-surface p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Preview · {previewing.invoiceNumber}</h3>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <a href={`/api/invoices/${previewing.id}/pdf`} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-3.5 w-3.5" /> Download PDF
-                </a>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPreviewing(null)}>Close</Button>
-            </div>
-          </div>
-          <InvoicePreview invoice={previewing} workspaceName={workspaceName} paymentTerms={paymentTerms} />
-        </div>
-      ) : null}
-
-      <SlideOver open={Boolean(editing)} onOpenChange={(v) => !v && setEditing(null)}>
-        <SlideOverContent title={`Edit ${editing?.invoiceNumber ?? ""}`} description="Update invoice details.">
-          {editing ? <InvoiceForm invoice={editing} onDone={() => setEditing(null)} /> : null}
-        </SlideOverContent>
-      </SlideOver>
+      <PageFooter />
     </div>
+  );
+}
+
+const rowIconStyle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--ink-soft)",
+  background: "transparent",
+  border: "1px solid var(--hair)",
+  cursor: "pointer",
+};
+
+function RowIcon({
+  children,
+  onClick,
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) {
+  return (
+    <button {...rest} onClick={onClick} style={rowIconStyle}>
+      {children}
+    </button>
+  );
+}
+
+function Th({
+  children,
+  align = "left",
+  width,
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+  width?: number;
+}) {
+  return (
+    <th
+      className="mono"
+      style={{
+        textAlign: align,
+        padding: "14px 18px",
+        fontSize: 10,
+        letterSpacing: "0.24em",
+        color: "var(--ink-faint)",
+        fontWeight: 400,
+        width,
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
+  return (
+    <td
+      style={{
+        padding: "16px 18px",
+        textAlign: align,
+        fontSize: 14,
+        color: "var(--ink)",
+        verticalAlign: "middle",
+      }}
+    >
+      {children}
+    </td>
+  );
+}
+
+function StatusPill({ status }: { status: Invoice["status"] }) {
+  const tones: Record<Invoice["status"], { bg: string; fg: string; label: string }> = {
+    draft: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Draft" },
+    pending: { bg: "rgba(201,100,66,0.14)", fg: "#a01e1e", label: "Unpaid" },
+    overdue: { bg: "rgba(160,30,30,0.14)", fg: "#a01e1e", label: "Overdue" },
+    paid: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Paid" },
+  };
+  const t = tones[status];
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "4px 10px",
+        borderRadius: 6,
+        fontSize: 12,
+        fontWeight: 500,
+        background: t.bg,
+        color: t.fg,
+      }}
+    >
+      {t.label}
+    </span>
   );
 }
