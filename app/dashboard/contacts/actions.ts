@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
+import { logActivity } from "@/lib/activity";
 
 const CATEGORIES = ["legal","publicist","label_rep","glam","management","venue_promoter","other"] as const;
 
@@ -25,7 +26,7 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
 
   const session = await requireSession();
 
-  await db.insert(contacts).values({
+  const [inserted] = await db.insert(contacts).values({
     workspaceId: session.workspace.id,
     name: parsed.data.name,
     role: parsed.data.role || null,
@@ -34,6 +35,16 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
     phone: parsed.data.phone || null,
     clients: parsed.data.clients,
     notes: parsed.data.notes || null,
+  }).returning({ id: contacts.id });
+  await logActivity({
+    action: "contact.created",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "contact",
+    entityId: inserted.id,
+    entityLabel: parsed.data.name,
   });
   revalidatePath("/dashboard/contacts");
   return { ok: true as const };
@@ -58,13 +69,39 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
     })
     .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
 
+  await logActivity({
+    action: "contact.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "contact",
+    entityId: id,
+    entityLabel: parsed.data.name,
+  });
+
   revalidatePath("/dashboard/contacts");
   return { ok: true as const };
 }
 
 export async function deleteContact(id: string) {
   const session = await requireSession();
+  const [doomed] = await db
+    .select({ name: contacts.name })
+    .from(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)))
+    .limit(1);
   await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: "contact.deleted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "contact",
+    entityId: id,
+    entityLabel: doomed?.name ?? null,
+  });
   revalidatePath("/dashboard/contacts");
   return { ok: true as const };
 }

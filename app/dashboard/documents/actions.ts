@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { createUploadUrl, createDownloadUrl, deleteObject } from "@/lib/r2";
+import { logActivity } from "@/lib/activity";
 
 export async function presignUpload(input: {
   client: string;
@@ -33,7 +34,7 @@ export async function recordUpload(input: {
   const session = await requireSession();
   if (session.member.role === "view_only") return { error: "View-only members cannot upload" };
 
-  await db.insert(documents).values({
+  const [inserted] = await db.insert(documents).values({
     workspaceId: session.workspace.id,
     client: input.client,
     category: input.category,
@@ -43,6 +44,16 @@ export async function recordUpload(input: {
     fileSize: input.file_size,
     uploadedBy: session.member.id,
     uploadedAt: new Date(),
+  }).returning({ id: documents.id });
+  await logActivity({
+    action: "document.uploaded",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "document",
+    entityId: inserted.id,
+    entityLabel: `${input.file_name} · ${input.client}/${input.category}`,
   });
   revalidatePath("/dashboard/documents");
   return { ok: true as const };
@@ -61,6 +72,17 @@ export async function deleteDocument(id: string) {
     /* swallow — DB row deletion is more important than orphaned blob */
   }
   await db.delete(documents).where(eq(documents.id, id));
+
+  await logActivity({
+    action: "document.deleted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "document",
+    entityId: id,
+    entityLabel: `${doc.fileName} · ${doc.client}/${doc.category}`,
+  });
 
   revalidatePath("/dashboard/documents");
   return { ok: true as const };

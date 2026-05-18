@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
+import { logActivity } from "@/lib/activity";
 import type { TaskPriority, TaskStatus } from "@/lib/db/schema";
 
 const taskInput = z.object({
@@ -23,7 +24,7 @@ export async function createTask(input: z.infer<typeof taskInput>) {
 
   const session = await requireSession();
 
-  await db.insert(tasks).values({
+  const [inserted] = await db.insert(tasks).values({
     workspaceId: session.workspace.id,
     title: parsed.data.title,
     priority: parsed.data.priority,
@@ -33,6 +34,17 @@ export async function createTask(input: z.infer<typeof taskInput>) {
     linkedEntityType: parsed.data.linked_entity_type || null,
     linkedEntityId: parsed.data.linked_entity_id || null,
     status: "open",
+  }).returning({ id: tasks.id });
+
+  await logActivity({
+    action: "task.created",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "task",
+    entityId: inserted.id,
+    entityLabel: parsed.data.title,
   });
 
   revalidatePath("/dashboard");
@@ -42,10 +54,25 @@ export async function createTask(input: z.infer<typeof taskInput>) {
 
 export async function toggleTaskStatus(taskId: string, status: TaskStatus) {
   const session = await requireSession();
+  const [task] = await db
+    .select({ title: tasks.title })
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, session.workspace.id)))
+    .limit(1);
   await db
     .update(tasks)
     .set({ status, updatedAt: new Date() })
     .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: status === "done" ? "task.completed" : "task.reopened",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "task",
+    entityId: taskId,
+    entityLabel: task?.title ?? null,
+  });
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/tasks");
   return { ok: true as const, error: undefined };
@@ -53,7 +80,22 @@ export async function toggleTaskStatus(taskId: string, status: TaskStatus) {
 
 export async function deleteTask(taskId: string) {
   const session = await requireSession();
+  const [task] = await db
+    .select({ title: tasks.title })
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, session.workspace.id)))
+    .limit(1);
   await db.delete(tasks).where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: "task.deleted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "task",
+    entityId: taskId,
+    entityLabel: task?.title ?? null,
+  });
   revalidatePath("/dashboard/tasks");
   return { ok: true as const };
 }

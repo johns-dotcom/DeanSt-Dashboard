@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { invoices, workspaces } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
+import { logActivity } from "@/lib/activity";
 
 const lineItemSchema = z.object({
   description: z.string(),
@@ -50,7 +51,7 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
   const number = await nextInvoiceNumber(session.workspace.id);
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
-  await db.insert(invoices).values({
+  const [inserted] = await db.insert(invoices).values({
     workspaceId: session.workspace.id,
     invoiceNumber: number,
     client: parsed.data.client,
@@ -63,6 +64,18 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
     issuedDate: parsed.data.issued_date || today,
     dueDate: parsed.data.due_date || null,
     status: parsed.data.status,
+  }).returning({ id: invoices.id });
+
+  await logActivity({
+    action: "invoice.created",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: inserted.id,
+    entityLabel: `${number} · ${parsed.data.client}`,
+    metadata: { total },
   });
 
   revalidatePath("/dashboard");
@@ -94,13 +107,41 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
     })
     .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
 
+  await logActivity({
+    action: "invoice.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: id,
+    entityLabel: parsed.data.client,
+  });
+
   revalidatePath("/dashboard/invoices");
   return { ok: true as const };
 }
 
 export async function deleteInvoice(id: string) {
   const session = await requireSession();
+  const [doomed] = await db
+    .select({ invoiceNumber: invoices.invoiceNumber, client: invoices.client })
+    .from(invoices)
+    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)))
+    .limit(1);
   await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
+
+  await logActivity({
+    action: "invoice.deleted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: id,
+    entityLabel: doomed ? `${doomed.invoiceNumber} · ${doomed.client}` : null,
+  });
+
   revalidatePath("/dashboard/invoices");
   return { ok: true as const };
 }

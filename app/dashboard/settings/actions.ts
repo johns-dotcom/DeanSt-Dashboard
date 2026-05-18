@@ -8,6 +8,7 @@ import { workspaces, workspaceMembers, workspaceInvites } from "@/lib/db/schema"
 import { requireSession, requireAdmin, initialsFor } from "@/lib/auth/workspace";
 import { inviteEmail } from "@/lib/email/invite-template";
 import { sendInviteViaGmail } from "@/lib/email/gmail";
+import { logActivity } from "@/lib/activity";
 import type { Role } from "@/lib/db/schema";
 
 async function sendInviteEmail({
@@ -88,6 +89,16 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>) {
     role: parsed.data.role,
   });
 
+  await logActivity({
+    action: "member.invited",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invite",
+    entityLabel: `${parsed.data.email} (${parsed.data.role})`,
+  });
+
   revalidatePath("/dashboard/settings");
   if ("warn" in emailResult) return { ok: true as const, warn: emailResult.warn };
   return { ok: true as const };
@@ -110,15 +121,38 @@ export async function resendInvite(inviteId: string) {
     inviterName: session.member.displayName,
     role: invite.role,
   });
+  await logActivity({
+    action: "member.invite_resent",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invite",
+    entityLabel: invite.email,
+  });
   if ("warn" in r) return { ok: true as const, warn: r.warn };
   return { ok: true as const };
 }
 
 export async function revokeInvite(inviteId: string) {
   const session = await requireAdmin();
+  const [invite] = await db
+    .select({ email: workspaceInvites.email })
+    .from(workspaceInvites)
+    .where(and(eq(workspaceInvites.id, inviteId), eq(workspaceInvites.workspaceId, session.workspace.id)))
+    .limit(1);
   await db
     .delete(workspaceInvites)
     .where(and(eq(workspaceInvites.id, inviteId), eq(workspaceInvites.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: "member.invite_revoked",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invite",
+    entityLabel: invite?.email ?? null,
+  });
   revalidatePath("/dashboard/settings");
   return { ok: true as const };
 }
@@ -128,10 +162,26 @@ export async function changeMemberRole(memberId: string, role: Role) {
   if (memberId === session.member.id && role !== "admin") {
     return { error: "You can't demote yourself" };
   }
+  const [target] = await db
+    .select({ displayName: workspaceMembers.displayName, oldRole: workspaceMembers.role })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, session.workspace.id)))
+    .limit(1);
   await db
     .update(workspaceMembers)
     .set({ role, updatedAt: new Date() })
     .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: "member.role_changed",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "member",
+    entityId: memberId,
+    entityLabel: target?.displayName ?? null,
+    metadata: { from: target?.oldRole, to: role },
+  });
   revalidatePath("/dashboard/settings");
   return { ok: true as const };
 }
@@ -139,9 +189,24 @@ export async function changeMemberRole(memberId: string, role: Role) {
 export async function removeMember(memberId: string) {
   const session = await requireAdmin();
   if (memberId === session.member.id) return { error: "You can't remove yourself" };
+  const [target] = await db
+    .select({ displayName: workspaceMembers.displayName })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, session.workspace.id)))
+    .limit(1);
   await db
     .delete(workspaceMembers)
     .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, session.workspace.id)));
+  await logActivity({
+    action: "member.removed",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "member",
+    entityId: memberId,
+    entityLabel: target?.displayName ?? null,
+  });
   revalidatePath("/dashboard/settings");
   return { ok: true as const };
 }
@@ -169,6 +234,17 @@ export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
     })
     .where(eq(workspaces.id, session.workspace.id));
 
+  await logActivity({
+    action: "workspace.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "workspace",
+    entityId: session.workspace.id,
+    entityLabel: parsed.data.name,
+  });
+
   revalidatePath("/dashboard/settings");
   return { ok: true as const };
 }
@@ -181,6 +257,16 @@ export async function updateDisplayName(displayName: string) {
     .update(workspaceMembers)
     .set({ displayName: trimmed, avatarInitials: initialsFor(trimmed), updatedAt: new Date() })
     .where(eq(workspaceMembers.id, session.member.id));
+  await logActivity({
+    action: "profile.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: trimmed,
+    entityType: "member",
+    entityId: session.member.id,
+    entityLabel: trimmed,
+  });
   revalidatePath("/dashboard");
   return { ok: true as const };
 }

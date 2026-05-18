@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
+import { logActivity } from "@/lib/activity";
 
 const dealSchema = z.object({
   artist: z.string().min(1, "Talent is required"),
@@ -24,7 +25,7 @@ export async function createDeal(input: z.infer<typeof dealSchema>) {
 
   const session = await requireSession();
 
-  await db.insert(deals).values({
+  const [inserted] = await db.insert(deals).values({
     workspaceId: session.workspace.id,
     artist: parsed.data.artist,
     type: parsed.data.type,
@@ -34,6 +35,17 @@ export async function createDeal(input: z.infer<typeof dealSchema>) {
     endDate: parsed.data.end_date || null,
     status: parsed.data.status,
     notes: parsed.data.notes || null,
+  }).returning({ id: deals.id });
+
+  await logActivity({
+    action: "deal.created",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "deal",
+    entityId: inserted.id,
+    entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
   });
 
   revalidatePath("/dashboard");
@@ -62,13 +74,41 @@ export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) 
     })
     .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
 
+  await logActivity({
+    action: "deal.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "deal",
+    entityId: id,
+    entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
+  });
+
   revalidatePath("/dashboard/deals");
   return { ok: true as const };
 }
 
 export async function deleteDeal(id: string) {
   const session = await requireSession();
+  const [doomed] = await db
+    .select({ artist: deals.artist, counterparty: deals.counterparty })
+    .from(deals)
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)))
+    .limit(1);
   await db.delete(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
+
+  await logActivity({
+    action: "deal.deleted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "deal",
+    entityId: id,
+    entityLabel: doomed ? `${doomed.artist} × ${doomed.counterparty}` : null,
+  });
+
   revalidatePath("/dashboard/deals");
   return { ok: true as const };
 }

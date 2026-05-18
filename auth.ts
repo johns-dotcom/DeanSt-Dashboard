@@ -5,8 +5,9 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { users, accounts, sessions, verificationTokens } from "@/lib/db/schema";
+import { users, accounts, sessions, verificationTokens, workspaceMembers } from "@/lib/db/schema";
 import { authConfig } from "./auth.config";
+import { logActivity } from "@/lib/activity";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -40,4 +41,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  events: {
+    async signIn({ user, account }) {
+      if (!user?.id) return;
+      const [member] = await db
+        .select({ id: workspaceMembers.id, workspaceId: workspaceMembers.workspaceId, displayName: workspaceMembers.displayName })
+        .from(workspaceMembers)
+        .where(eq(workspaceMembers.userId, user.id))
+        .limit(1);
+      await logActivity({
+        action: "auth.signed_in",
+        actorUserId: user.id,
+        actorMemberId: member?.id ?? null,
+        actorName: member?.displayName ?? user.name ?? user.email ?? null,
+        workspaceId: member?.workspaceId ?? null,
+        metadata: { provider: account?.provider ?? "unknown" },
+      });
+    },
+    async signOut(message) {
+      const userId = "token" in message ? message.token?.sub : message.session?.userId;
+      if (!userId) return;
+      const [member] = await db
+        .select({ id: workspaceMembers.id, workspaceId: workspaceMembers.workspaceId, displayName: workspaceMembers.displayName })
+        .from(workspaceMembers)
+        .where(eq(workspaceMembers.userId, userId))
+        .limit(1);
+      await logActivity({
+        action: "auth.signed_out",
+        actorUserId: userId,
+        actorMemberId: member?.id ?? null,
+        actorName: member?.displayName ?? null,
+        workspaceId: member?.workspaceId ?? null,
+      });
+    },
+  },
 });

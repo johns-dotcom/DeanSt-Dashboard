@@ -49,6 +49,12 @@ export const FolderIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const ActivityIcon = ({ className }: IconProps) => (
+  <svg className={`${base} ${className ?? ""}`} width="18" height="18" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
+    <path d="M2.5 10h3.2l1.6-4.5 3.2 9 1.6-4.5h5.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const GearIcon = ({ className }: IconProps) => (
   <svg className={`${base} ${className ?? ""}`} width="18" height="18" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
     <circle cx="10" cy="10" r="2.6" />

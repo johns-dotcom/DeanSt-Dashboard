@@ -196,6 +196,20 @@ export const documents = pgTable("documents", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const activityEvents = pgTable("activity_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  actorMemberId: uuid("actor_member_id").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  actorName: text("actor_name"),
+  action: text("action").notNull(),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  entityLabel: text("entity_label"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 /* ─────────── relations (light, only what we query) ─────────── */
 export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
   workspace: one(workspaces, { fields: [workspaceMembers.workspaceId], references: [workspaces.id] }),
@@ -220,6 +234,7 @@ export type Deal = typeof deals.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Document = typeof documents.$inferSelect;
+export type ActivityEvent = typeof activityEvents.$inferSelect;
 
 export type Role = (typeof roleEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];

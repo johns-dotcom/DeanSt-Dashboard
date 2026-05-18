@@ -12,6 +12,7 @@ import {
   CheckIcon,
   FolderIcon,
   GearIcon,
+  ActivityIcon,
 } from "@/components/brand/icons";
 import type { WorkspaceMember } from "@/lib/db/schema";
 
@@ -147,6 +148,14 @@ export function Sidebar({
       <div>
         <NavLabel>Settings</NavLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {member.role === "admin" ? (
+            <NavItem
+              href="/dashboard/activity"
+              label="Activity"
+              Icon={ActivityIcon}
+              active={pathname.startsWith("/dashboard/activity")}
+            />
+          ) : null}
           <NavItem
             href="/dashboard/settings"
             label="Settings"
