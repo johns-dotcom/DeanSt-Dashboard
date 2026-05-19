@@ -3,23 +3,12 @@
 import { useMemo, useState } from "react";
 import { Plus, Users, Mail, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilterPills } from "@/components/dashboard/filter-pills";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
 import { ContactForm } from "./contact-form";
 import { cn } from "@/lib/utils";
-import type { Contact, ContactCategory } from "@/lib/db/schema";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  legal: "Legal",
-  publicist: "Publicist",
-  label_rep: "Label rep",
-  glam: "Glam",
-  management: "Management",
-  venue_promoter: "Venue / promoter",
-  other: "Other",
-};
+import type { Contact } from "@/lib/db/schema";
 
 const AVATAR_COLORS = [
   "bg-rose-100 text-rose-700",
@@ -40,90 +29,91 @@ function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
-type CategoryFilter = "all" | ContactCategory;
 const PAGE_SIZE = 120;
+const UNCATEGORIZED = "__uncat__";
 
 export function ContactsClient({ contacts }: { contacts: Contact[] }) {
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
-  const industries = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of contacts) if (c.industry) set.add(c.industry);
-    return Array.from(set).sort();
+  const { industries, uncategorizedCount } = useMemo(() => {
+    const counts = new Map<string, number>();
+    let uncat = 0;
+    for (const c of contacts) {
+      if (c.industry) counts.set(c.industry, (counts.get(c.industry) ?? 0) + 1);
+      else uncat++;
+    }
+    const arr = Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([value, count]) => ({ value, label: value, count }));
+    return { industries: arr, uncategorizedCount: uncat };
   }, [contacts]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return contacts.filter((c) => {
-      if (categoryFilter !== "all" && c.category !== categoryFilter) return false;
-      if (industryFilter !== "all" && c.industry !== industryFilter) return false;
+      if (filter !== "all") {
+        if (filter === UNCATEGORIZED) {
+          if (c.industry) return false;
+        } else if (c.industry !== filter) {
+          return false;
+        }
+      }
       if (q && !`${c.name} ${c.role ?? ""} ${c.email ?? ""} ${c.industry ?? ""} ${(c.clients ?? []).join(" ")}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [contacts, categoryFilter, industryFilter, query]);
+  }, [contacts, filter, query]);
 
   const visible = filtered.slice(0, pageSize);
+
+  const pillOptions = useMemo(() => {
+    const opts: { value: string; label: string; count?: number }[] = [
+      { value: "all", label: "All", count: contacts.length },
+      ...industries,
+    ];
+    if (uncategorizedCount > 0) {
+      opts.push({ value: UNCATEGORIZED, label: "Uncategorized", count: uncategorizedCount });
+    }
+    return opts;
+  }, [industries, uncategorizedCount, contacts.length]);
+
+  const industryNames = useMemo(() => industries.map((i) => i.value), [industries]);
 
   return (
     <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 280 }}>
-          <Input
-            placeholder="Search by name, role, brand, email…"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setPageSize(PAGE_SIZE); }}
-            className="max-w-xs"
-          />
-          {industries.length > 0 ? (
-            <Select
-              value={industryFilter}
-              onValueChange={(v) => { setIndustryFilter(v); setPageSize(PAGE_SIZE); }}
-            >
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="All industries" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All industries</SelectItem>
-                {industries.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
+        <Input
+          placeholder="Search by name, role, brand, email…"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setPageSize(PAGE_SIZE); }}
+          className="max-w-xs"
+        />
         <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>
           {filtered.length} of {contacts.length} contacts
         </span>
       </div>
 
-      <FilterPills<CategoryFilter>
-        value={categoryFilter}
-        options={[
-          { value: "all", label: "All categories" },
-          { value: "legal", label: "Legal" },
-          { value: "publicist", label: "Publicist" },
-          { value: "label_rep", label: "Label rep" },
-          { value: "glam", label: "Glam" },
-          { value: "management", label: "Management" },
-          { value: "venue_promoter", label: "Venue/promoter" },
-          { value: "other", label: "Other" },
-        ]}
-        onChange={(v) => { setCategoryFilter(v); setPageSize(PAGE_SIZE); }}
+      <FilterPills<string>
+        value={filter}
+        options={pillOptions}
+        onChange={(v) => { setFilter(v); setPageSize(PAGE_SIZE); }}
       />
 
       {filtered.length === 0 && contacts.length === 0 ? (
         <EmptyState
           icon={<Users className="h-4 w-4" />}
           title="No contacts yet"
-          description="Track legal, publicists, label reps, and more."
+          description="Add brands, agencies, partners, and the people behind them."
           action={<button onClick={() => setOpenNew(true)} className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"><Plus className="inline h-4 w-4" /> Add contact</button>}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Users className="h-4 w-4" />}
           title="No matches"
-          description="Try a different industry, category, or search term."
+          description="Try a different category or search term."
         />
       ) : (
         <>
@@ -139,7 +129,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                 </span>
                 <div className="mt-3 line-clamp-1 text-sm font-medium">{c.name}</div>
                 <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground" style={{ minHeight: "2.4em" }}>
-                  {c.role || (c.category ? CATEGORY_LABELS[c.category] : "")}
+                  {c.role || ""}
                 </div>
                 {(c.industry || c.clients?.length) ? (
                   <div className="mt-2 flex flex-wrap gap-1">
@@ -204,13 +194,13 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
 
       <SlideOver open={openNew} onOpenChange={setOpenNew}>
         <SlideOverContent title="New contact" description="Add someone to your team's rolodex.">
-          <ContactForm onDone={() => setOpenNew(false)} industries={industries} />
+          <ContactForm onDone={() => setOpenNew(false)} industries={industryNames} />
         </SlideOverContent>
       </SlideOver>
 
       <SlideOver open={Boolean(editing)} onOpenChange={(v) => !v && setEditing(null)}>
         <SlideOverContent title="Edit contact" description="Update contact info.">
-          {editing ? <ContactForm contact={editing} onDone={() => setEditing(null)} industries={industries} /> : null}
+          {editing ? <ContactForm contact={editing} onDone={() => setEditing(null)} industries={industryNames} /> : null}
         </SlideOverContent>
       </SlideOver>
     </div>

@@ -8,12 +8,9 @@ import { contacts } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
-const CATEGORIES = ["legal","publicist","label_rep","glam","management","venue_promoter","other"] as const;
-
 const contactSchema = z.object({
   name: z.string().min(1, "Name is required"),
   role: z.string().optional().nullable(),
-  category: z.enum(CATEGORIES).optional().nullable(),
   industry: z.string().optional().nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
@@ -31,13 +28,13 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
     workspaceId: session.workspace.id,
     name: parsed.data.name,
     role: parsed.data.role || null,
-    category: parsed.data.category || null,
     industry: parsed.data.industry?.trim() || null,
     email: parsed.data.email || null,
     phone: parsed.data.phone || null,
     clients: parsed.data.clients,
     notes: parsed.data.notes || null,
   }).returning({ id: contacts.id });
+
   await logActivity({
     action: "contact.created",
     workspaceId: session.workspace.id,
@@ -62,7 +59,6 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
     .set({
       name: parsed.data.name,
       role: parsed.data.role || null,
-      category: parsed.data.category || null,
       industry: parsed.data.industry?.trim() || null,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,

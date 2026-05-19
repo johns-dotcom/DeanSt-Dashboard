@@ -19,15 +19,6 @@ export const invoiceTypeEnum = pgEnum("invoice_type", ["invoice", "reimbursement
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "pending", "overdue", "paid"]);
 export const dealTypeEnum = pgEnum("deal_type", ["recording", "brand"]);
 export const dealStatusEnum = pgEnum("deal_status", ["active", "closed", "negotiating"]);
-export const contactCategoryEnum = pgEnum("contact_category", [
-  "legal",
-  "publicist",
-  "label_rep",
-  "glam",
-  "management",
-  "venue_promoter",
-  "other",
-]);
 export const taskPriorityEnum = pgEnum("task_priority", ["high", "medium", "low"]);
 export const taskStatusEnum = pgEnum("task_status", ["open", "done"]);
 export const linkedEntityTypeEnum = pgEnum("linked_entity_type", ["invoice", "deal", "contact"]);
@@ -157,7 +148,6 @@ export const contacts = pgTable("contacts", {
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   role: text("role"),
-  category: contactCategoryEnum("category"),
   industry: text("industry"),
   email: text("email"),
   phone: text("phone"),
@@ -242,6 +232,5 @@ export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
 export type InvoiceStatus = (typeof invoiceStatusEnum.enumValues)[number];
 export type DealType = (typeof dealTypeEnum.enumValues)[number];
 export type DealStatus = (typeof dealStatusEnum.enumValues)[number];
-export type ContactCategory = (typeof contactCategoryEnum.enumValues)[number];
 export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
