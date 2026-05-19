@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Users, Mail, Phone, LayoutGrid, Table as TableIcon, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Plus,
+  Users,
+  Mail,
+  Phone,
+  LayoutGrid,
+  Table as TableIcon,
+  ChevronDown,
+  ChevronUp,
+  StickyNote,
+  X,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { FilterPills } from "@/components/dashboard/filter-pills";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -32,6 +43,22 @@ function initials(name: string) {
 type ViewMode = "cards" | "table";
 type SortKey = "name" | "role" | "industry" | "clients" | "email" | "phone";
 type SortDir = "asc" | "desc";
+type SortOption =
+  | "name_asc"
+  | "name_desc"
+  | "industry_asc"
+  | "role_asc"
+  | "recently_added"
+  | "recently_updated";
+
+const SORT_LABEL: Record<SortOption, string> = {
+  name_asc: "Name (A–Z)",
+  name_desc: "Name (Z–A)",
+  industry_asc: "Category",
+  role_asc: "Role",
+  recently_added: "Recently added",
+  recently_updated: "Recently updated",
+};
 
 const PAGE_SIZE_CARDS = 120;
 const PAGE_SIZE_TABLE = 200;
@@ -41,14 +68,30 @@ function strCmp(a: string | null | undefined, b: string | null | undefined) {
   return (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
 }
 
+function compareForSort(a: Contact, b: Contact, opt: SortOption): number {
+  switch (opt) {
+    case "name_asc": return strCmp(a.name, b.name);
+    case "name_desc": return strCmp(b.name, a.name);
+    case "industry_asc": return strCmp(a.industry, b.industry) || strCmp(a.name, b.name);
+    case "role_asc": return strCmp(a.role, b.role) || strCmp(a.name, b.name);
+    case "recently_added": return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    case "recently_updated": return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  }
+}
+
 export function ContactsClient({ contacts }: { contacts: Contact[] }) {
   const [filter, setFilter] = useState<string>("all");
+  const [brand, setBrand] = useState<string>("all");
   const [query, setQuery] = useState("");
+  const [hasEmail, setHasEmail] = useState(false);
+  const [hasPhone, setHasPhone] = useState(false);
+  const [hasNotes, setHasNotes] = useState(false);
+  const [sortOption, setSortOption] = useState<SortOption>("name_asc");
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [view, setView] = useState<ViewMode>("cards");
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [tableSortKey, setTableSortKey] = useState<SortKey>("name");
+  const [tableSortDir, setTableSortDir] = useState<SortDir>("asc");
   const [pageSize, setPageSize] = useState(PAGE_SIZE_CARDS);
 
   useEffect(() => {
@@ -65,9 +108,9 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
     setPageSize(next === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE);
   }
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("asc"); }
+  function toggleTableSort(key: SortKey) {
+    if (tableSortKey === key) setTableSortDir(tableSortDir === "asc" ? "desc" : "asc");
+    else { setTableSortKey(key); setTableSortDir("asc"); }
   }
 
   const { industries, uncategorizedCount } = useMemo(() => {
@@ -83,31 +126,52 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
     return { industries: arr, uncategorizedCount: uncat };
   }, [contacts]);
 
+  // Brands within the currently selected industry
+  const brands = useMemo(() => {
+    if (filter === "all" || filter === UNCATEGORIZED) return [];
+    const counts = new Map<string, number>();
+    for (const c of contacts) {
+      if (c.industry !== filter) continue;
+      for (const cl of c.clients ?? []) {
+        if (cl) counts.set(cl, (counts.get(cl) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [contacts, filter]);
+
+  useEffect(() => { setBrand("all"); }, [filter]);
+
+  const activeQuickFilters = [hasEmail, hasPhone, hasNotes].filter(Boolean).length;
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     const out = contacts.filter((c) => {
       if (filter !== "all") {
-        if (filter === UNCATEGORIZED) {
-          if (c.industry) return false;
-        } else if (c.industry !== filter) {
-          return false;
-        }
+        if (filter === UNCATEGORIZED) { if (c.industry) return false; }
+        else if (c.industry !== filter) return false;
       }
+      if (brand !== "all" && !(c.clients ?? []).includes(brand)) return false;
+      if (hasEmail && !c.email) return false;
+      if (hasPhone && !c.phone) return false;
+      if (hasNotes && !c.notes) return false;
       if (q && !`${c.name} ${c.role ?? ""} ${c.email ?? ""} ${c.industry ?? ""} ${(c.clients ?? []).join(" ")}`.toLowerCase().includes(q)) return false;
       return true;
     });
 
     if (view === "table") {
-      const dir = sortDir === "asc" ? 1 : -1;
+      const dir = tableSortDir === "asc" ? 1 : -1;
       out.sort((a, b) => {
-        const va = sortKey === "clients" ? (a.clients ?? []).join(", ") : (a as unknown as Record<SortKey, string | null>)[sortKey];
-        const vb = sortKey === "clients" ? (b.clients ?? []).join(", ") : (b as unknown as Record<SortKey, string | null>)[sortKey];
+        const va = tableSortKey === "clients" ? (a.clients ?? []).join(", ") : (a as unknown as Record<SortKey, string | null>)[tableSortKey];
+        const vb = tableSortKey === "clients" ? (b.clients ?? []).join(", ") : (b as unknown as Record<SortKey, string | null>)[tableSortKey];
         return strCmp(va, vb) * dir;
       });
+    } else {
+      out.sort((a, b) => compareForSort(a, b, sortOption));
     }
-
     return out;
-  }, [contacts, filter, query, sortKey, sortDir, view]);
+  }, [contacts, filter, brand, query, hasEmail, hasPhone, hasNotes, sortOption, view, tableSortKey, tableSortDir]);
 
   const visible = filtered.slice(0, pageSize);
 
@@ -124,8 +188,17 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
 
   const industryNames = useMemo(() => industries.map((i) => i.value), [industries]);
 
+  const resetAll = () => {
+    setFilter("all"); setBrand("all"); setQuery("");
+    setHasEmail(false); setHasPhone(false); setHasNotes(false);
+    setSortOption("name_asc");
+  };
+
+  const anyFilterActive =
+    filter !== "all" || brand !== "all" || query.trim() !== "" || activeQuickFilters > 0;
+
   return (
-    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 280 }}>
           <Input
@@ -134,6 +207,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
             onChange={(e) => { setQuery(e.target.value); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }}
             className="max-w-xs"
           />
+          <SortDropdown value={sortOption} onChange={setSortOption} disabled={view === "table"} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>
@@ -149,6 +223,40 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
         onChange={(v) => { setFilter(v); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }}
       />
 
+      {brands.length > 1 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="mono" style={{ fontSize: 10, letterSpacing: "0.24em", color: "var(--ink-faint)", marginRight: 4 }}>
+            Brand
+          </span>
+          <FilterPills<string>
+            value={brand}
+            options={[{ value: "all", label: `All ${filter}`, count: filtered.length }, ...brands]}
+            onChange={(v) => { setBrand(v); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }}
+          />
+        </div>
+      ) : null}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span className="mono" style={{ fontSize: 10, letterSpacing: "0.24em", color: "var(--ink-faint)", marginRight: 4 }}>
+          Has
+        </span>
+        <QuickChip active={hasEmail} onClick={() => { setHasEmail(!hasEmail); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }} icon={<Mail className="h-3 w-3" />} label="Email" />
+        <QuickChip active={hasPhone} onClick={() => { setHasPhone(!hasPhone); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }} icon={<Phone className="h-3 w-3" />} label="Phone" />
+        <QuickChip active={hasNotes} onClick={() => { setHasNotes(!hasNotes); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }} icon={<StickyNote className="h-3 w-3" />} label="Notes" />
+        {anyFilterActive ? (
+          <button
+            onClick={resetAll}
+            style={{
+              marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "6px 10px", fontSize: 12, background: "transparent",
+              border: "none", color: "var(--ink-faint)", cursor: "pointer",
+            }}
+          >
+            <X className="h-3 w-3" /> Clear all filters
+          </button>
+        ) : null}
+      </div>
+
       {filtered.length === 0 && contacts.length === 0 ? (
         <EmptyState
           icon={<Users className="h-4 w-4" />}
@@ -160,7 +268,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
         <EmptyState
           icon={<Users className="h-4 w-4" />}
           title="No matches"
-          description="Try a different category or search term."
+          description="Try a different category or clear some filters."
         />
       ) : view === "cards" ? (
         <>
@@ -183,14 +291,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                     {c.industry ? (
                       <span
                         className="mono"
-                        style={{
-                          fontSize: 9,
-                          letterSpacing: "0.18em",
-                          padding: "2px 7px",
-                          borderRadius: 999,
-                          background: "rgba(10,58,28,0.10)",
-                          color: "var(--sign-green)",
-                        }}
+                        style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(10,58,28,0.10)", color: "var(--sign-green)" }}
                       >
                         {c.industry}
                       </span>
@@ -224,24 +325,17 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
         </>
       ) : (
         <>
-          <div
-            style={{
-              background: "var(--paper)",
-              border: "1px solid var(--hair)",
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ background: "var(--paper)", border: "1px solid var(--hair)", borderRadius: 10, overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif" }}>
                 <thead>
                   <tr style={{ background: "var(--cream-light)" }}>
-                    <SortableTh label="Name" sortKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} width={220} />
-                    <SortableTh label="Role" sortKey="role" current={sortKey} dir={sortDir} onClick={toggleSort} />
-                    <SortableTh label="Category" sortKey="industry" current={sortKey} dir={sortDir} onClick={toggleSort} width={170} />
-                    <SortableTh label="Brands" sortKey="clients" current={sortKey} dir={sortDir} onClick={toggleSort} width={200} />
-                    <SortableTh label="Email" sortKey="email" current={sortKey} dir={sortDir} onClick={toggleSort} width={220} />
-                    <SortableTh label="Phone" sortKey="phone" current={sortKey} dir={sortDir} onClick={toggleSort} width={140} />
+                    <SortableTh label="Name" sortKey="name" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={220} />
+                    <SortableTh label="Role" sortKey="role" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} />
+                    <SortableTh label="Category" sortKey="industry" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={170} />
+                    <SortableTh label="Brands" sortKey="clients" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={200} />
+                    <SortableTh label="Email" sortKey="email" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={220} />
+                    <SortableTh label="Phone" sortKey="phone" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={140} />
                   </tr>
                 </thead>
                 <tbody>
@@ -265,14 +359,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                         {c.industry ? (
                           <span
                             className="mono"
-                            style={{
-                              fontSize: 9,
-                              letterSpacing: "0.18em",
-                              padding: "2px 7px",
-                              borderRadius: 999,
-                              background: "rgba(10,58,28,0.10)",
-                              color: "var(--sign-green)",
-                            }}
+                            style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(10,58,28,0.10)", color: "var(--sign-green)" }}
                           >
                             {c.industry}
                           </span>
@@ -326,18 +413,81 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
   );
 }
 
+function SortDropdown({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: SortOption;
+  onChange: (v: SortOption) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as SortOption)}
+      disabled={disabled}
+      title={disabled ? "Sort by clicking column headers in table view" : "Sort contacts"}
+      style={{
+        padding: "8px 30px 8px 12px",
+        background: "var(--cream-light)",
+        border: "1px solid var(--hair)",
+        borderRadius: 8,
+        color: disabled ? "var(--ink-faint)" : "var(--ink)",
+        fontSize: 13,
+        fontFamily: "inherit",
+        appearance: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.6 : 1,
+        backgroundImage:
+          "linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%)",
+        backgroundPosition: "calc(100% - 14px) 17px, calc(100% - 9px) 17px",
+        backgroundSize: "5px 5px",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {(Object.keys(SORT_LABEL) as SortOption[]).map((k) => (
+        <option key={k} value={k}>Sort: {SORT_LABEL[k]}</option>
+      ))}
+    </select>
+  );
+}
+
+function QuickChip({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        padding: "5px 11px", fontSize: 12,
+        background: active ? "var(--ink)" : "var(--cream-light)",
+        color: active ? "var(--cream)" : "var(--ink-soft)",
+        border: active ? "1px solid var(--ink)" : "1px solid var(--hair)",
+        borderRadius: 999, cursor: "pointer",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   const baseBtn: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 5,
-    padding: "5px 10px",
-    fontSize: 12,
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    color: "var(--ink-soft)",
-    borderRadius: 6,
+    display: "inline-flex", alignItems: "center", gap: 5,
+    padding: "5px 10px", fontSize: 12,
+    background: "transparent", border: "none", cursor: "pointer",
+    color: "var(--ink-soft)", borderRadius: 6,
   };
   const active: React.CSSProperties = { background: "var(--paper)", color: "var(--ink)", boxShadow: "0 0 0 1px var(--hair)" };
   return (
@@ -372,15 +522,9 @@ function SortableTh({
     <th
       className="mono"
       style={{
-        textAlign: "left",
-        padding: "12px 16px",
-        fontSize: 10,
-        letterSpacing: "0.24em",
-        color: active ? "var(--ink)" : "var(--ink-faint)",
-        fontWeight: 400,
-        cursor: "pointer",
-        userSelect: "none",
-        width,
+        textAlign: "left", padding: "12px 16px", fontSize: 10,
+        letterSpacing: "0.24em", color: active ? "var(--ink)" : "var(--ink-faint)",
+        fontWeight: 400, cursor: "pointer", userSelect: "none", width,
       }}
       onClick={() => onClick(sortKey)}
     >
@@ -396,14 +540,9 @@ function Td({ children }: { children: React.ReactNode }) {
   return (
     <td
       style={{
-        padding: "12px 16px",
-        fontSize: 13.5,
-        color: "var(--ink)",
-        verticalAlign: "middle",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        maxWidth: 0,
+        padding: "12px 16px", fontSize: 13.5, color: "var(--ink)",
+        verticalAlign: "middle", whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0,
       }}
     >
       {children}
@@ -417,13 +556,9 @@ function LoadMore({ remaining, pageSize, onClick }: { remaining: number; pageSiz
       <button
         onClick={onClick}
         style={{
-          background: "var(--cream-light)",
-          border: "1px solid var(--hair)",
-          borderRadius: 8,
-          padding: "10px 18px",
-          fontSize: 13,
-          cursor: "pointer",
-          color: "var(--ink)",
+          background: "var(--cream-light)", border: "1px solid var(--hair)",
+          borderRadius: 8, padding: "10px 18px", fontSize: 13,
+          cursor: "pointer", color: "var(--ink)",
         }}
       >
         Load {Math.min(pageSize, remaining)} more
