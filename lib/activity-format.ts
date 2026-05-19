@@ -25,43 +25,67 @@ export type ActivityAction =
   | "document.uploaded"
   | "document.deleted";
 
-const PAST_TENSE: Record<ActivityAction, (label: string | null) => string> = {
-  "auth.signed_in": () => "signed in",
-  "auth.signed_out": () => "signed out",
-  "workspace.updated": () => "updated workspace settings",
-  "profile.updated": () => "updated their profile",
-  "member.invited": (l) => `invited ${l ?? "a teammate"}`,
-  "member.invite_resent": (l) => `resent invite to ${l ?? "a teammate"}`,
-  "member.invite_revoked": (l) => `revoked invite for ${l ?? "a teammate"}`,
-  "member.role_changed": (l) => `changed role for ${l ?? "a teammate"}`,
-  "member.removed": (l) => `removed ${l ?? "a teammate"}`,
-  "invoice.created": (l) => `created invoice ${l ?? ""}`.trim(),
-  "invoice.updated": (l) => `updated invoice ${l ?? ""}`.trim(),
-  "invoice.deleted": (l) => `deleted invoice ${l ?? ""}`.trim(),
-  "deal.created": (l) => `created deal ${l ?? ""}`.trim(),
-  "deal.updated": (l) => `updated deal ${l ?? ""}`.trim(),
-  "deal.deleted": (l) => `deleted deal ${l ?? ""}`.trim(),
-  "contact.created": (l) => `added contact ${l ?? ""}`.trim(),
-  "contact.updated": (l) => `updated contact ${l ?? ""}`.trim(),
-  "contact.deleted": (l) => `removed contact ${l ?? ""}`.trim(),
-  "task.created": (l) => `added task "${l ?? ""}"`,
-  "task.updated": (l) => `updated task "${l ?? ""}"`,
-  "task.deleted": (l) => `deleted task "${l ?? ""}"`,
-  "task.completed": (l) => `completed "${l ?? ""}"`,
-  "task.reopened": (l) => `reopened "${l ?? ""}"`,
-  "document.uploaded": (l) => `uploaded ${l ?? "a file"}`,
-  "document.deleted": (l) => `deleted ${l ?? "a file"}`,
+const TITLES: Record<ActivityAction, string> = {
+  "auth.signed_in": "Signed in",
+  "auth.signed_out": "Signed out",
+  "workspace.updated": "Updated workspace",
+  "profile.updated": "Updated profile",
+  "member.invited": "Invited teammate",
+  "member.invite_resent": "Resent invite",
+  "member.invite_revoked": "Revoked invite",
+  "member.role_changed": "Changed role",
+  "member.removed": "Removed member",
+  "invoice.created": "Created invoice",
+  "invoice.updated": "Updated invoice",
+  "invoice.deleted": "Deleted invoice",
+  "deal.created": "Created deal",
+  "deal.updated": "Updated deal",
+  "deal.deleted": "Deleted deal",
+  "contact.created": "Added contact",
+  "contact.updated": "Updated contact",
+  "contact.deleted": "Removed contact",
+  "task.created": "Added task",
+  "task.updated": "Updated task",
+  "task.deleted": "Deleted task",
+  "task.completed": "Completed task",
+  "task.reopened": "Reopened task",
+  "document.uploaded": "Uploaded file",
+  "document.deleted": "Deleted file",
 };
 
+/** Short bold action label, e.g. "Created invoice". */
+export function actionTitle(action: string): string {
+  return TITLES[action as ActivityAction] ?? action.replaceAll(".", " · ");
+}
+
+/** Full past-tense sentence, used in compact contexts. */
 export function describeActivity(action: string, label: string | null): string {
-  const fn = PAST_TENSE[action as ActivityAction];
-  return fn ? fn(label) : action.replaceAll(".", " · ");
+  const title = actionTitle(action).toLowerCase();
+  return label ? `${title} ${label}` : title;
+}
+
+/**
+ * The "details" cell — extracts a short string from event metadata
+ * appropriate for each action type. Falls back to "—".
+ */
+export function detailsText(action: string, metadata: Record<string, unknown> | null | undefined): string {
+  if (!metadata || typeof metadata !== "object") return "—";
+  if (action === "invoice.created" && typeof metadata.total === "number") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(metadata.total);
+  }
+  if (action === "member.role_changed" && metadata.from && metadata.to) {
+    return `${String(metadata.from).replaceAll("_", " ")} → ${String(metadata.to).replaceAll("_", " ")}`;
+  }
+  if (action === "auth.signed_in" && typeof metadata.provider === "string") {
+    return `via ${metadata.provider}`;
+  }
+  return "—";
 }
 
 const CATEGORY: Record<string, string> = {
   auth: "auth",
-  workspace: "workspace",
-  profile: "profile",
+  workspace: "settings",
+  profile: "settings",
   member: "team",
   invoice: "invoices",
   deal: "deals",
