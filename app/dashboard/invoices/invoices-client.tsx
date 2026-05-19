@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Eye, Pencil, Download, Trash2 } from "lucide-react";
+import { Eye, Pencil, Download, Trash2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { PageFooter } from "@/components/brand/page-footer";
 import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
+import { ReceiptsPanel } from "./receipts-panel";
 import { deleteInvoice } from "./actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice, InvoiceClientPage, LineItem } from "@/lib/db/schema";
@@ -52,6 +53,7 @@ export function InvoicesClient({
   clientPages,
   activeClientSlug,
   activeClientName,
+  receiptCounts = {},
 }: {
   invoices: Invoice[];
   workspaceName: string;
@@ -60,6 +62,7 @@ export function InvoicesClient({
   clientPages: InvoiceClientPage[];
   activeClientSlug: string | null;
   activeClientName?: string;
+  receiptCounts?: Record<string, number>;
 }) {
   const initialDraft = useMemo<DraftInvoice>(
     () => ({ ...emptyDraft, client: activeClientName ?? "" }),
@@ -67,6 +70,7 @@ export function InvoicesClient({
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftInvoice>(initialDraft);
+  const [receiptsFor, setReceiptsFor] = useState<Invoice | null>(null);
   const [, startTransition] = useTransition();
 
   // Reset draft when navigating between client tabs
@@ -213,6 +217,12 @@ export function InvoicesClient({
                   </Td>
                   <Td align="right">
                     <div style={{ display: "inline-flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                      {inv.type === "reimbursement" ? (
+                        <ReceiptsButton
+                          count={receiptCounts[inv.id] ?? 0}
+                          onClick={() => setReceiptsFor(inv)}
+                        />
+                      ) : null}
                       <RowIcon onClick={() => startEdit(inv)} aria-label="Edit"><Pencil className="h-3.5 w-3.5" /></RowIcon>
                       <a
                         href={`/api/invoices/${inv.id}/pdf?inline=1`}
@@ -242,6 +252,12 @@ export function InvoicesClient({
         )}
       </section>
 
+      <ReceiptsPanel
+        invoice={receiptsFor}
+        open={Boolean(receiptsFor)}
+        onOpenChange={(v) => { if (!v) setReceiptsFor(null); }}
+      />
+
       <PageFooter />
     </div>
   );
@@ -259,6 +275,29 @@ const rowIconStyle: React.CSSProperties = {
   border: "1px solid var(--hair)",
   cursor: "pointer",
 };
+
+function ReceiptsButton({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={`Receipts (${count})`}
+      title={count ? `${count} receipt${count === 1 ? "" : "s"}` : "Add receipts"}
+      style={{
+        ...rowIconStyle,
+        background: count > 0 ? "rgba(10,58,28,0.10)" : rowIconStyle.background,
+        color: count > 0 ? "var(--sign-green)" : (rowIconStyle.color as string),
+        borderColor: count > 0 ? "rgba(10,58,28,0.25)" : "var(--hair)",
+        width: "auto",
+        paddingLeft: 8,
+        paddingRight: count > 0 ? 8 : 10,
+        gap: 4,
+      }}
+    >
+      <Paperclip className="h-3.5 w-3.5" />
+      {count > 0 ? <span style={{ fontSize: 11, fontWeight: 600 }}>{count}</span> : null}
+    </button>
+  );
+}
 
 function RowIcon({
   children,

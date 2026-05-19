@@ -197,6 +197,19 @@ export const invoiceClientPages = pgTable("invoice_client_pages", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const invoiceReceipts = pgTable("invoice_receipts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  invoiceId: uuid("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull().default(0),
+  contentType: text("content_type"),
+  uploadedBy: uuid("uploaded_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const activityEvents = pgTable("activity_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
@@ -237,6 +250,7 @@ export type Task = typeof tasks.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type InvoiceClientPage = typeof invoiceClientPages.$inferSelect;
+export type InvoiceReceipt = typeof invoiceReceipts.$inferSelect;
 
 export type Role = (typeof roleEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
