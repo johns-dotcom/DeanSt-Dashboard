@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Users, Mail, Phone } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Users, Mail, Phone, LayoutGrid, Table as TableIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { FilterPills } from "@/components/dashboard/filter-pills";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -29,15 +29,46 @@ function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
-const PAGE_SIZE = 120;
+type ViewMode = "cards" | "table";
+type SortKey = "name" | "role" | "industry" | "clients" | "email" | "phone";
+type SortDir = "asc" | "desc";
+
+const PAGE_SIZE_CARDS = 120;
+const PAGE_SIZE_TABLE = 200;
 const UNCATEGORIZED = "__uncat__";
+
+function strCmp(a: string | null | undefined, b: string | null | undefined) {
+  return (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
+}
 
 export function ContactsClient({ contacts }: { contacts: Contact[] }) {
   const [filter, setFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [view, setView] = useState<ViewMode>("cards");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_CARDS);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("deanst.contacts.view");
+    if (stored === "cards" || stored === "table") {
+      setView(stored);
+      setPageSize(stored === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE);
+    }
+  }, []);
+
+  function changeView(next: ViewMode) {
+    setView(next);
+    localStorage.setItem("deanst.contacts.view", next);
+    setPageSize(next === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE);
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   const { industries, uncategorizedCount } = useMemo(() => {
     const counts = new Map<string, number>();
@@ -54,7 +85,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    return contacts.filter((c) => {
+    const out = contacts.filter((c) => {
       if (filter !== "all") {
         if (filter === UNCATEGORIZED) {
           if (c.industry) return false;
@@ -65,7 +96,18 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
       if (q && !`${c.name} ${c.role ?? ""} ${c.email ?? ""} ${c.industry ?? ""} ${(c.clients ?? []).join(" ")}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [contacts, filter, query]);
+
+    if (view === "table") {
+      const dir = sortDir === "asc" ? 1 : -1;
+      out.sort((a, b) => {
+        const va = sortKey === "clients" ? (a.clients ?? []).join(", ") : (a as unknown as Record<SortKey, string | null>)[sortKey];
+        const vb = sortKey === "clients" ? (b.clients ?? []).join(", ") : (b as unknown as Record<SortKey, string | null>)[sortKey];
+        return strCmp(va, vb) * dir;
+      });
+    }
+
+    return out;
+  }, [contacts, filter, query, sortKey, sortDir, view]);
 
   const visible = filtered.slice(0, pageSize);
 
@@ -85,21 +127,26 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
   return (
     <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <Input
-          placeholder="Search by name, role, brand, email…"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setPageSize(PAGE_SIZE); }}
-          className="max-w-xs"
-        />
-        <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>
-          {filtered.length} of {contacts.length} contacts
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 280 }}>
+          <Input
+            placeholder="Search by name, role, brand, email…"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }}
+            className="max-w-xs"
+          />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+            {filtered.length} of {contacts.length} contacts
+          </span>
+          <ViewToggle value={view} onChange={changeView} />
+        </div>
       </div>
 
       <FilterPills<string>
         value={filter}
         options={pillOptions}
-        onChange={(v) => { setFilter(v); setPageSize(PAGE_SIZE); }}
+        onChange={(v) => { setFilter(v); setPageSize(view === "cards" ? PAGE_SIZE_CARDS : PAGE_SIZE_TABLE); }}
       />
 
       {filtered.length === 0 && contacts.length === 0 ? (
@@ -115,7 +162,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
           title="No matches"
           description="Try a different category or search term."
         />
-      ) : (
+      ) : view === "cards" ? (
         <>
           <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
             {visible.map((c) => (
@@ -172,22 +219,94 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
             </button>
           </div>
           {filtered.length > pageSize ? (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-              <button
-                onClick={() => setPageSize((p) => p + PAGE_SIZE)}
-                style={{
-                  background: "var(--cream-light)",
-                  border: "1px solid var(--hair)",
-                  borderRadius: 8,
-                  padding: "10px 18px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  color: "var(--ink)",
-                }}
-              >
-                Load {Math.min(PAGE_SIZE, filtered.length - pageSize)} more
-              </button>
+            <LoadMore remaining={filtered.length - pageSize} pageSize={PAGE_SIZE_CARDS} onClick={() => setPageSize((p) => p + PAGE_SIZE_CARDS)} />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div
+            style={{
+              background: "var(--paper)",
+              border: "1px solid var(--hair)",
+              borderRadius: 10,
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif" }}>
+                <thead>
+                  <tr style={{ background: "var(--cream-light)" }}>
+                    <SortableTh label="Name" sortKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} width={220} />
+                    <SortableTh label="Role" sortKey="role" current={sortKey} dir={sortDir} onClick={toggleSort} />
+                    <SortableTh label="Category" sortKey="industry" current={sortKey} dir={sortDir} onClick={toggleSort} width={170} />
+                    <SortableTh label="Brands" sortKey="clients" current={sortKey} dir={sortDir} onClick={toggleSort} width={200} />
+                    <SortableTh label="Email" sortKey="email" current={sortKey} dir={sortDir} onClick={toggleSort} width={220} />
+                    <SortableTh label="Phone" sortKey="phone" current={sortKey} dir={sortDir} onClick={toggleSort} width={140} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((c) => (
+                    <tr
+                      key={c.id}
+                      onClick={() => setEditing(c)}
+                      style={{ borderTop: "1px solid var(--hair)", cursor: "pointer" }}
+                      className="hover:bg-hover"
+                    >
+                      <Td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-medium flex-none", avatarColor(c.name))}>
+                            {initials(c.name) || "?"}
+                          </span>
+                          <span style={{ fontWeight: 500 }}>{c.name}</span>
+                        </div>
+                      </Td>
+                      <Td>{c.role || <span style={{ color: "var(--ink-faint)" }}>—</span>}</Td>
+                      <Td>
+                        {c.industry ? (
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: 9,
+                              letterSpacing: "0.18em",
+                              padding: "2px 7px",
+                              borderRadius: 999,
+                              background: "rgba(10,58,28,0.10)",
+                              color: "var(--sign-green)",
+                            }}
+                          >
+                            {c.industry}
+                          </span>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                      <Td>
+                        {(c.clients ?? []).length > 0 ? (
+                          <span style={{ color: "var(--ink-soft)" }}>{c.clients.join(", ")}</span>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                      <Td>
+                        {c.email ? (
+                          <a
+                            href={`mailto:${c.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ color: "var(--sign-green)", textDecoration: "none" }}
+                          >
+                            {c.email}
+                          </a>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                      <Td>
+                        {c.phone ? (
+                          <span style={{ color: "var(--ink-soft)" }}>{c.phone}</span>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          </div>
+          {filtered.length > pageSize ? (
+            <LoadMore remaining={filtered.length - pageSize} pageSize={PAGE_SIZE_TABLE} onClick={() => setPageSize((p) => p + PAGE_SIZE_TABLE)} />
           ) : null}
         </>
       )}
@@ -203,6 +322,112 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
           {editing ? <ContactForm contact={editing} onDone={() => setEditing(null)} industries={industryNames} /> : null}
         </SlideOverContent>
       </SlideOver>
+    </div>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  const baseBtn: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "5px 10px",
+    fontSize: 12,
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--ink-soft)",
+    borderRadius: 6,
+  };
+  const active: React.CSSProperties = { background: "var(--paper)", color: "var(--ink)", boxShadow: "0 0 0 1px var(--hair)" };
+  return (
+    <div style={{ display: "inline-flex", padding: 3, background: "var(--cream-light)", border: "1px solid var(--hair)", borderRadius: 8 }}>
+      <button onClick={() => onChange("cards")} style={{ ...baseBtn, ...(value === "cards" ? active : {}) }}>
+        <LayoutGrid className="h-3.5 w-3.5" /> Cards
+      </button>
+      <button onClick={() => onChange("table")} style={{ ...baseBtn, ...(value === "table" ? active : {}) }}>
+        <TableIcon className="h-3.5 w-3.5" /> Table
+      </button>
+    </div>
+  );
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  current,
+  dir,
+  onClick,
+  width,
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: SortDir;
+  onClick: (key: SortKey) => void;
+  width?: number;
+}) {
+  const active = current === sortKey;
+  return (
+    <th
+      className="mono"
+      style={{
+        textAlign: "left",
+        padding: "12px 16px",
+        fontSize: 10,
+        letterSpacing: "0.24em",
+        color: active ? "var(--ink)" : "var(--ink-faint)",
+        fontWeight: 400,
+        cursor: "pointer",
+        userSelect: "none",
+        width,
+      }}
+      onClick={() => onClick(sortKey)}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {label}
+        {active ? (dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+      </span>
+    </th>
+  );
+}
+
+function Td({ children }: { children: React.ReactNode }) {
+  return (
+    <td
+      style={{
+        padding: "12px 16px",
+        fontSize: 13.5,
+        color: "var(--ink)",
+        verticalAlign: "middle",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        maxWidth: 0,
+      }}
+    >
+      {children}
+    </td>
+  );
+}
+
+function LoadMore({ remaining, pageSize, onClick }: { remaining: number; pageSize: number; onClick: () => void }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+      <button
+        onClick={onClick}
+        style={{
+          background: "var(--cream-light)",
+          border: "1px solid var(--hair)",
+          borderRadius: 8,
+          padding: "10px 18px",
+          fontSize: 13,
+          cursor: "pointer",
+          color: "var(--ink)",
+        }}
+      >
+        Load {Math.min(pageSize, remaining)} more
+      </button>
     </div>
   );
 }
