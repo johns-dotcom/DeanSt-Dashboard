@@ -40,11 +40,11 @@ export function InvoicePreviewPanel({
   return (
     <section
       style={{
-        background: "var(--paper)",
+        background: "#ffffff",
         border: "1px solid var(--hair)",
         borderRadius: 10,
         padding: "28px 32px 32px",
-        color: "var(--ink)",
+        color: "#1a1612",
         fontFamily: 'Arial, sans-serif',
         fontSize: 13,
         lineHeight: 1.4,

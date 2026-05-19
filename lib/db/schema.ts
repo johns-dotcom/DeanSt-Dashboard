@@ -187,6 +187,16 @@ export const documents = pgTable("documents", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const invoiceClientPages = pgTable("invoice_client_pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const activityEvents = pgTable("activity_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
@@ -226,6 +236,7 @@ export type Contact = typeof contacts.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
+export type InvoiceClientPage = typeof invoiceClientPages.$inferSelect;
 
 export type Role = (typeof roleEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];

@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Eye, Pencil, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { PageFooter } from "@/components/brand/page-footer";
 import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
+import { ClientTabs } from "./client-tabs";
 import { deleteInvoice } from "./actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { Invoice, LineItem } from "@/lib/db/schema";
+import type { Invoice, InvoiceClientPage, LineItem } from "@/lib/db/schema";
 
 export interface DraftInvoice {
   client: string;
@@ -48,15 +49,31 @@ export function InvoicesClient({
   workspaceName,
   paymentTerms,
   nextInvoiceNumber,
+  clientPages,
+  activeClientSlug,
+  activeClientName,
 }: {
   invoices: Invoice[];
   workspaceName: string;
   paymentTerms: string;
   nextInvoiceNumber: string;
+  clientPages: InvoiceClientPage[];
+  activeClientSlug: string | null;
+  activeClientName?: string;
 }) {
+  const initialDraft = useMemo<DraftInvoice>(
+    () => ({ ...emptyDraft, client: activeClientName ?? "" }),
+    [activeClientName]
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DraftInvoice>(emptyDraft);
+  const [draft, setDraft] = useState<DraftInvoice>(initialDraft);
   const [, startTransition] = useTransition();
+
+  // Reset draft when navigating between client tabs
+  useEffect(() => {
+    setEditingId(null);
+    setDraft(initialDraft);
+  }, [activeClientSlug, initialDraft]);
 
   const editing = useMemo(
     () => (editingId ? invoices.find((i) => i.id === editingId) ?? null : null),
@@ -65,7 +82,7 @@ export function InvoicesClient({
 
   function startNew() {
     setEditingId(null);
-    setDraft(emptyDraft);
+    setDraft(initialDraft);
   }
 
   function startEdit(inv: Invoice) {
@@ -86,7 +103,8 @@ export function InvoicesClient({
   const displayNumber = editing?.invoiceNumber ?? nextInvoiceNumber;
 
   return (
-    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 28 }}>
+    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 22 }}>
+      <ClientTabs pages={clientPages} activeSlug={activeClientSlug} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Eyebrow size={10} spacing={0.36}>№ 02 · Ledger</Eyebrow>
         <Eyebrow size={10} spacing={0.32}>{editing ? `Editing ${editing.invoiceNumber}` : "Drafting new invoice"}</Eyebrow>
@@ -98,7 +116,7 @@ export function InvoicesClient({
           setDraft={setDraft}
           editingInvoice={editing}
           displayNumber={displayNumber}
-          onSaved={() => { setEditingId(null); setDraft(emptyDraft); }}
+          onSaved={() => { setEditingId(null); setDraft(initialDraft); }}
           onCancel={startNew}
         />
         <InvoicePreviewPanel
