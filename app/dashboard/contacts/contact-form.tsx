@@ -21,15 +21,26 @@ const CATEGORIES: { value: ContactCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-export function ContactForm({ contact, onDone }: { contact?: Contact; onDone: () => void }) {
+export function ContactForm({
+  contact,
+  onDone,
+  industries = [],
+}: {
+  contact?: Contact;
+  onDone: () => void;
+  industries?: string[];
+}) {
   const [name, setName] = useState(contact?.name ?? "");
   const [role, setRole] = useState(contact?.role ?? "");
   const [category, setCategory] = useState<ContactCategory | "">(contact?.category ?? "");
+  const [industry, setIndustry] = useState(contact?.industry ?? "");
   const [email, setEmail] = useState(contact?.email ?? "");
   const [phone, setPhone] = useState(contact?.phone ?? "");
   const [clientsRaw, setClientsRaw] = useState((contact?.clients ?? []).join(", "));
   const [notes, setNotes] = useState(contact?.notes ?? "");
   const [pending, startTransition] = useTransition();
+
+  const showIndustryPicker = industries.length > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +50,7 @@ export function ContactForm({ contact, onDone }: { contact?: Contact; onDone: ()
         name: name.trim(),
         role: role.trim() || null,
         category: (category || null) as ContactCategory | null,
+        industry: industry.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         clients: clientsRaw.split(",").map((s) => s.trim()).filter(Boolean),
@@ -71,7 +83,7 @@ export function ContactForm({ contact, onDone }: { contact?: Contact; onDone: ()
         </div>
         <div className="space-y-1">
           <Label htmlFor="role">Role</Label>
-          <Input id="role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Lawyer at Sound Law LLP" />
+          <Input id="role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Director of brand marketing" />
         </div>
         <div className="space-y-1">
           <Label>Category</Label>
@@ -82,6 +94,33 @@ export function ContactForm({ contact, onDone }: { contact?: Contact; onDone: ()
             </SelectContent>
           </Select>
         </div>
+        <div className="col-span-2 space-y-1">
+          <Label htmlFor="industry">Industry</Label>
+          {showIndustryPicker ? (
+            <>
+              <Select value={industry || undefined} onValueChange={(v) => setIndustry(v)}>
+                <SelectTrigger><SelectValue placeholder="Pick an industry" /></SelectTrigger>
+                <SelectContent>
+                  {industries.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input
+                id="industry"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                placeholder="Or type a new industry"
+                className="mt-2"
+              />
+            </>
+          ) : (
+            <Input
+              id="industry"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              placeholder="Hotels, Fashion, Beauty, …"
+            />
+          )}
+        </div>
         <div className="space-y-1">
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -91,8 +130,8 @@ export function ContactForm({ contact, onDone }: { contact?: Contact; onDone: ()
           <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="col-span-2 space-y-1">
-          <Label htmlFor="cls">Clients (comma-separated)</Label>
-          <Input id="cls" value={clientsRaw} onChange={(e) => setClientsRaw(e.target.value)} placeholder="Acme, Boom, etc." />
+          <Label htmlFor="cls">Brands / Clients (comma-separated)</Label>
+          <Input id="cls" value={clientsRaw} onChange={(e) => setClientsRaw(e.target.value)} placeholder="IHG Hotels, Marriott, …" />
         </div>
         <div className="col-span-2 space-y-1">
           <Label htmlFor="notes">Notes</Label>

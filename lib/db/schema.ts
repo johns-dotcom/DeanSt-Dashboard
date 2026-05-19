@@ -158,6 +158,7 @@ export const contacts = pgTable("contacts", {
   name: text("name").notNull(),
   role: text("role"),
   category: contactCategoryEnum("category"),
+  industry: text("industry"),
   email: text("email"),
   phone: text("phone"),
   clients: text("clients").array().notNull().default(sql`'{}'`),
