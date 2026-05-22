@@ -9,7 +9,7 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
-import { deleteInvoice } from "./actions";
+import { deleteInvoice, setInvoicePaid, setInvoiceSubmitted } from "./actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice, InvoiceClientPage, LineItem } from "@/lib/db/schema";
 
@@ -104,6 +104,22 @@ export function InvoicesClient({
     });
   }
 
+  function togglePaid(inv: Invoice) {
+    const nextPaid = inv.status !== "paid";
+    startTransition(async () => {
+      await setInvoicePaid(inv.id, nextPaid);
+      toast.success(nextPaid ? "Marked as paid" : "Marked as unpaid");
+    });
+  }
+
+  function toggleSubmitted(inv: Invoice) {
+    const nextSubmitted = !inv.submitted;
+    startTransition(async () => {
+      await setInvoiceSubmitted(inv.id, nextSubmitted);
+      toast.success(nextSubmitted ? "Marked as submitted" : "Marked as not submitted");
+    });
+  }
+
   const displayNumber = editing?.invoiceNumber ?? nextInvoiceNumber;
 
   return (
@@ -182,7 +198,8 @@ export function InvoicesClient({
                 <Th>Description</Th>
                 <Th align="right" width={140}>Amount</Th>
                 <Th width={110}>Date</Th>
-                <Th width={92}>Status</Th>
+                <Th width={88}>Paid</Th>
+                <Th width={110}>Submitted</Th>
                 <Th align="right" width={140}>Actions</Th>
               </tr>
             </thead>
@@ -213,7 +230,24 @@ export function InvoicesClient({
                     </span>
                   </Td>
                   <Td>
-                    <StatusPill status={inv.status} />
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ToggleButton
+                        active={inv.status === "paid"}
+                        activeLabel="Paid"
+                        inactiveLabel="Unpaid"
+                        onClick={() => togglePaid(inv)}
+                      />
+                    </div>
+                  </Td>
+                  <Td>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ToggleButton
+                        active={inv.submitted}
+                        activeLabel="Submitted"
+                        inactiveLabel="Not sent"
+                        onClick={() => toggleSubmitted(inv)}
+                      />
+                    </div>
                   </Td>
                   <Td align="right">
                     <div style={{ display: "inline-flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
@@ -360,27 +394,34 @@ function Td({
   );
 }
 
-function StatusPill({ status }: { status: Invoice["status"] }) {
-  const tones: Record<Invoice["status"], { bg: string; fg: string; label: string }> = {
-    draft: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Draft" },
-    pending: { bg: "rgba(201,100,66,0.14)", fg: "#a01e1e", label: "Unpaid" },
-    overdue: { bg: "rgba(160,30,30,0.14)", fg: "#a01e1e", label: "Overdue" },
-    paid: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Paid" },
-  };
-  const t = tones[status];
+function ToggleButton({
+  active,
+  activeLabel,
+  inactiveLabel,
+  onClick,
+}: {
+  active: boolean;
+  activeLabel: string;
+  inactiveLabel: string;
+  onClick: () => void;
+}) {
   return (
-    <span
+    <button
+      type="button"
+      onClick={onClick}
       style={{
-        display: "inline-block",
         padding: "4px 10px",
         borderRadius: 6,
         fontSize: 12,
         fontWeight: 500,
-        background: t.bg,
-        color: t.fg,
+        fontFamily: 'Arial, sans-serif',
+        cursor: "pointer",
+        background: active ? "rgba(10,58,28,0.12)" : "rgba(26,22,18,0.06)",
+        color: active ? "var(--sign-green)" : "var(--ink-soft)",
+        border: `1px solid ${active ? "rgba(10,58,28,0.25)" : "var(--hair)"}`,
       }}
     >
-      {t.label}
-    </span>
+      {active ? activeLabel : inactiveLabel}
+    </button>
   );
 }

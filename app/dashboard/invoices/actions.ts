@@ -122,6 +122,50 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
   return { ok: true as const };
 }
 
+export async function setInvoicePaid(id: string, paid: boolean) {
+  const session = await requireSession();
+  const status = paid ? "paid" : "pending";
+  await db
+    .update(invoices)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
+
+  await logActivity({
+    action: paid ? "invoice.marked_paid" : "invoice.marked_unpaid",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: id,
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/invoices");
+  return { ok: true as const };
+}
+
+export async function setInvoiceSubmitted(id: string, submitted: boolean) {
+  const session = await requireSession();
+  await db
+    .update(invoices)
+    .set({ submitted, updatedAt: new Date() })
+    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
+
+  await logActivity({
+    action: submitted ? "invoice.marked_submitted" : "invoice.marked_not_submitted",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: id,
+  });
+
+  revalidatePath("/dashboard/invoices");
+  return { ok: true as const };
+}
+
 export async function deleteInvoice(id: string) {
   const session = await requireSession();
   const [doomed] = await db

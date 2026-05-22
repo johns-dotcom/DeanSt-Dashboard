@@ -11,6 +11,10 @@ export type ActivityAction =
   | "invoice.created"
   | "invoice.updated"
   | "invoice.deleted"
+  | "invoice.marked_paid"
+  | "invoice.marked_unpaid"
+  | "invoice.marked_submitted"
+  | "invoice.marked_not_submitted"
   | "deal.created"
   | "deal.updated"
   | "deal.deleted"
@@ -38,6 +42,10 @@ const TITLES: Record<ActivityAction, string> = {
   "invoice.created": "Created invoice",
   "invoice.updated": "Updated invoice",
   "invoice.deleted": "Deleted invoice",
+  "invoice.marked_paid": "Marked invoice paid",
+  "invoice.marked_unpaid": "Marked invoice unpaid",
+  "invoice.marked_submitted": "Marked invoice submitted",
+  "invoice.marked_not_submitted": "Marked invoice not submitted",
   "deal.created": "Created deal",
   "deal.updated": "Updated deal",
   "deal.deleted": "Deleted deal",
