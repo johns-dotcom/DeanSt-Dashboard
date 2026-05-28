@@ -4,6 +4,8 @@ import { useTransition } from "react";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
+import { Toggle } from "@/components/brand/toggle";
+import { ReceiptsManager } from "./receipts-manager";
 import { createInvoice, updateInvoice } from "./actions";
 import type { Invoice, LineItem } from "@/lib/db/schema";
 import type { DraftInvoice } from "./invoices-client";
@@ -153,6 +155,31 @@ export function InvoiceFormPanel({
         </div>
       </div>
 
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "12px 14px",
+          background: "var(--cream-light)",
+          border: "1px solid var(--hair)",
+          borderRadius: 8,
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 500, color: "var(--ink)" }}>Reimbursement</div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>
+            Attach receipts and track expenses paid out of pocket.
+          </div>
+        </div>
+        <Toggle
+          checked={draft.type === "reimbursement"}
+          onCheckedChange={(v) => setDraft((p) => ({ ...p, type: v ? "reimbursement" : "invoice" }))}
+          ariaLabel="Toggle reimbursement"
+        />
+      </div>
+
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label style={labelStyle}>Bill To</label>
@@ -291,6 +318,37 @@ export function InvoiceFormPanel({
           {pending ? "Saving…" : editingInvoice ? "Save changes" : "Create invoice"}
         </button>
       </form>
+
+      {editingInvoice && draft.type === "reimbursement" ? (
+        <div
+          style={{
+            borderTop: "1px solid var(--hair)",
+            paddingTop: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div>
+            <h4 style={{ fontSize: 14, fontWeight: 600 }}>Receipts</h4>
+            <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+              Drop in PDFs, photos, or screenshots — multiple files supported.
+            </p>
+          </div>
+          <ReceiptsManager invoiceId={editingInvoice.id} compact />
+        </div>
+      ) : !editingInvoice && draft.type === "reimbursement" ? (
+        <div
+          style={{
+            borderTop: "1px solid var(--hair)",
+            paddingTop: 14,
+            fontSize: 12,
+            color: "var(--ink-soft)",
+          }}
+        >
+          Create the reimbursement first — receipts can be attached once it&apos;s saved.
+        </div>
+      ) : null}
     </section>
   );
 }
