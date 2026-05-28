@@ -122,6 +122,34 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
   return { ok: true as const };
 }
 
+export async function setInvoiceStatus(id: string, status: "draft" | "pending" | "overdue" | "paid") {
+  const session = await requireSession();
+
+  const [updated] = await db
+    .update(invoices)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)))
+    .returning({ invoiceNumber: invoices.invoiceNumber, client: invoices.client });
+
+  if (!updated) return { error: "Invoice not found" };
+
+  await logActivity({
+    action: "invoice.updated",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: id,
+    entityLabel: `${updated.invoiceNumber} · ${updated.client}`,
+    metadata: { statusChanged: status },
+  });
+
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/dashboard/invoices", "layout");
+  return { ok: true as const };
+}
+
 export async function deleteInvoice(id: string) {
   const session = await requireSession();
   const [doomed] = await db

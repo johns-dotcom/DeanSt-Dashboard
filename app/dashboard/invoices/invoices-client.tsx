@@ -9,7 +9,14 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
-import { deleteInvoice } from "./actions";
+import { deleteInvoice, setInvoiceStatus } from "./actions";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { Check } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice, InvoiceClientPage, LineItem } from "@/lib/db/schema";
 
@@ -213,7 +220,9 @@ export function InvoicesClient({
                     </span>
                   </Td>
                   <Td>
-                    <StatusPill status={inv.status} />
+                    <div onClick={(e) => e.stopPropagation()} style={{ display: "inline-block" }}>
+                      <StatusMenu status={inv.status} invoiceId={inv.id} invoiceNumber={inv.invoiceNumber} />
+                    </div>
                   </Td>
                   <Td align="right">
                     <div style={{ display: "inline-flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
@@ -360,27 +369,95 @@ function Td({
   );
 }
 
-function StatusPill({ status }: { status: Invoice["status"] }) {
-  const tones: Record<Invoice["status"], { bg: string; fg: string; label: string }> = {
-    draft: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Draft" },
-    pending: { bg: "rgba(201,100,66,0.14)", fg: "#a01e1e", label: "Unpaid" },
-    overdue: { bg: "rgba(160,30,30,0.14)", fg: "#a01e1e", label: "Overdue" },
-    paid: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Paid" },
-  };
-  const t = tones[status];
+const STATUS_TONES: Record<Invoice["status"], { bg: string; fg: string; label: string }> = {
+  draft: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Draft" },
+  pending: { bg: "rgba(201,100,66,0.14)", fg: "#a01e1e", label: "Unpaid" },
+  overdue: { bg: "rgba(160,30,30,0.14)", fg: "#a01e1e", label: "Overdue" },
+  paid: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Paid" },
+};
+
+const STATUS_ORDER: Invoice["status"][] = ["draft", "pending", "overdue", "paid"];
+
+function StatusMenu({
+  status,
+  invoiceId,
+  invoiceNumber,
+}: {
+  status: Invoice["status"];
+  invoiceId: string;
+  invoiceNumber: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [optimistic, setOptimistic] = useState<Invoice["status"]>(status);
+
+  // Keep the local optimistic value synced when the server data changes
+  useEffect(() => { setOptimistic(status); }, [status]);
+
+  function pick(next: Invoice["status"]) {
+    if (next === optimistic) return;
+    setOptimistic(next);
+    startTransition(async () => {
+      const r = await setInvoiceStatus(invoiceId, next);
+      if ("error" in r && r.error) {
+        setOptimistic(status);
+        toast.error(r.error);
+      } else {
+        toast.success(`${invoiceNumber} → ${STATUS_TONES[next].label}`);
+      }
+    });
+  }
+
+  const t = STATUS_TONES[optimistic];
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "4px 10px",
-        borderRadius: 6,
-        fontSize: 12,
-        fontWeight: 500,
-        background: t.bg,
-        color: t.fg,
-      }}
-    >
-      {t.label}
-    </span>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={pending}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "4px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 500,
+            background: t.bg,
+            color: t.fg,
+            border: "none",
+            cursor: pending ? "wait" : "pointer",
+            opacity: pending ? 0.7 : 1,
+          }}
+        >
+          {t.label}
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2.5 4 5 6.5 7.5 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4} style={{ minWidth: 140 }}>
+        {STATUS_ORDER.map((s) => {
+          const tone = STATUS_TONES[s];
+          const active = s === optimistic;
+          return (
+            <DropdownMenuItem key={s} onSelect={() => pick(s)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: 1 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: tone.fg,
+                    flex: "none",
+                  }}
+                />
+                <span style={{ fontSize: 13 }}>{tone.label}</span>
+              </span>
+              {active ? <Check className="h-3.5 w-3.5" style={{ color: "var(--ink-soft)" }} /> : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
