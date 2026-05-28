@@ -9,7 +9,7 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
-import { deleteInvoice, setInvoiceStatus } from "./actions";
+import { deleteInvoice, setInvoiceStatus, setInvoiceSent } from "./actions";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -190,6 +190,7 @@ export function InvoicesClient({
                 <Th align="right" width={140}>Amount</Th>
                 <Th width={110}>Date</Th>
                 <Th width={92}>Status</Th>
+                <Th width={108}>Sent</Th>
                 <Th align="right" width={140}>Actions</Th>
               </tr>
             </thead>
@@ -222,6 +223,11 @@ export function InvoicesClient({
                   <Td>
                     <div onClick={(e) => e.stopPropagation()} style={{ display: "inline-block" }}>
                       <StatusMenu status={inv.status} invoiceId={inv.id} invoiceNumber={inv.invoiceNumber} />
+                    </div>
+                  </Td>
+                  <Td>
+                    <div onClick={(e) => e.stopPropagation()} style={{ display: "inline-block" }}>
+                      <SentMenu sent={inv.sent} invoiceId={inv.id} invoiceNumber={inv.invoiceNumber} />
                     </div>
                   </Td>
                   <Td align="right">
@@ -366,6 +372,94 @@ function Td({
     >
       {children}
     </td>
+  );
+}
+
+const SENT_TONES = {
+  true: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Sent" },
+  false: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Not sent" },
+} as const;
+
+function SentMenu({
+  sent,
+  invoiceId,
+  invoiceNumber,
+}: {
+  sent: boolean;
+  invoiceId: string;
+  invoiceNumber: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [optimistic, setOptimistic] = useState<boolean>(sent);
+
+  useEffect(() => { setOptimistic(sent); }, [sent]);
+
+  function pick(next: boolean) {
+    if (next === optimistic) return;
+    setOptimistic(next);
+    startTransition(async () => {
+      const r = await setInvoiceSent(invoiceId, next);
+      if ("error" in r && r.error) {
+        setOptimistic(sent);
+        toast.error(r.error);
+      } else {
+        toast.success(`${invoiceNumber} → ${next ? "Sent" : "Not sent"}`);
+      }
+    });
+  }
+
+  const t = SENT_TONES[optimistic ? "true" : "false"];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={pending}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "4px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 500,
+            background: t.bg,
+            color: t.fg,
+            border: "none",
+            cursor: pending ? "wait" : "pointer",
+            opacity: pending ? 0.7 : 1,
+          }}
+        >
+          {t.label}
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2.5 4 5 6.5 7.5 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4} style={{ minWidth: 140 }}>
+        {[true, false].map((s) => {
+          const tone = SENT_TONES[s ? "true" : "false"];
+          const active = s === optimistic;
+          return (
+            <DropdownMenuItem key={String(s)} onSelect={() => pick(s)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: 1 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: tone.fg,
+                    flex: "none",
+                  }}
+                />
+                <span style={{ fontSize: 13 }}>{tone.label}</span>
+              </span>
+              {active ? <Check className="h-3.5 w-3.5" style={{ color: "var(--ink-soft)" }} /> : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
