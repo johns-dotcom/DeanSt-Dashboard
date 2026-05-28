@@ -46,7 +46,13 @@ function fmt(value: number) {
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(d));
+  // Parse calendar-only strings (YYYY-MM-DD) in local time so they
+  // don't drift back a day in timezones west of UTC.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  const parsed = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(d);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed);
 }
 
 export function InvoicePDF({
