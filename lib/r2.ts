@@ -1,40 +1,67 @@
-import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+/**
+ * R2 client using HTTP Bearer auth against the S3-compatible endpoint.
+ *
+ * Cloudflare's new unified API tokens (`cfat_...`) authenticate via the
+ * Authorization: Bearer header. The legacy Access Key ID + Secret flow is
+ * no longer available in the dashboard for newer tenants, and the AWS SDK
+ * rejects the 53-char token as an Access Key ID before sending the
+ * request. So we talk to R2 with plain fetch() calls.
+ *
+ * All calls run server-side (Node runtime). The browser never sees the
+ * bearer token — uploads, downloads, and deletes proxy through the
+ * Next.js API routes.
+ */
 
 const accountId = process.env.R2_ACCOUNT_ID ?? "";
-const endpoint = process.env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
+const bearerToken = process.env.R2_BEARER_TOKEN ?? process.env.R2_SECRET_ACCESS_KEY ?? "";
+export const r2Bucket = process.env.R2_BUCKET ?? "deanst";
 
-export const r2Bucket = process.env.R2_BUCKET ?? "deanst-documents";
+const endpointBase =
+  process.env.R2_ENDPOINT?.replace(/\/+$/, "") ||
+  (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
 
-export const r2 = new S3Client({
-  region: "auto",
-  endpoint: endpoint || undefined,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
-  },
-  // R2 doesn't enforce checksum headers; disable to avoid spurious 501s
-  forcePathStyle: true,
-});
-
-export async function createUploadUrl(key: string, contentType: string) {
-  const cmd = new PutObjectCommand({
-    Bucket: r2Bucket,
-    Key: key,
-    ContentType: contentType,
-  });
-  return getSignedUrl(r2, cmd, { expiresIn: 60 * 5 });
+function objectUrl(key: string): string {
+  if (!endpointBase) throw new Error("R2 not configured: missing R2_ACCOUNT_ID or R2_ENDPOINT");
+  if (!r2Bucket) throw new Error("R2 not configured: missing R2_BUCKET");
+  if (!bearerToken) throw new Error("R2 not configured: missing R2_BEARER_TOKEN");
+  // Encode each path segment but preserve "/" separators
+  const encoded = key.split("/").map(encodeURIComponent).join("/");
+  return `${endpointBase}/${r2Bucket}/${encoded}`;
 }
 
-export async function createDownloadUrl(key: string, fileName: string) {
-  const cmd = new GetObjectCommand({
-    Bucket: r2Bucket,
-    Key: key,
-    ResponseContentDisposition: `attachment; filename="${fileName.replace(/"/g, "")}"`,
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { authorization: `Bearer ${bearerToken}`, ...extra };
+}
+
+export async function putObject(key: string, body: Buffer | Uint8Array, contentType: string) {
+  const ab = new ArrayBuffer(body.byteLength);
+  new Uint8Array(ab).set(body);
+  const blob = new Blob([ab], { type: contentType || "application/octet-stream" });
+  const res = await fetch(objectUrl(key), {
+    method: "PUT",
+    headers: authHeaders({ "content-type": contentType || "application/octet-stream" }),
+    body: blob,
   });
-  return getSignedUrl(r2, cmd, { expiresIn: 60 });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 PUT ${res.status}: ${text.slice(0, 200) || res.statusText}`);
+  }
+}
+
+export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string | null }> {
+  const res = await fetch(objectUrl(key), { method: "GET", headers: authHeaders() });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 GET ${res.status}: ${text.slice(0, 200) || res.statusText}`);
+  }
+  return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") };
 }
 
 export async function deleteObject(key: string) {
-  await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+  const res = await fetch(objectUrl(key), { method: "DELETE", headers: authHeaders() });
+  // 404 is fine — already gone is the desired state
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 200) || res.statusText}`);
+  }
 }

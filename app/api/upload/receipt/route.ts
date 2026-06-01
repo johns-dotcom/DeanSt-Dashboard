@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@/lib/db";
 import { invoices, invoiceReceipts } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
-import { r2, r2Bucket } from "@/lib/r2";
+import { putObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
@@ -38,17 +37,11 @@ export async function POST(req: NextRequest) {
 
     const bytes = Buffer.from(await file.arrayBuffer());
     try {
-      await r2.send(
-        new PutObjectCommand({ Bucket: r2Bucket, Key: key, Body: bytes, ContentType: contentType })
-      );
+      await putObject(key, bytes, contentType);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown R2 error";
-      const name = err instanceof Error ? err.name : "Error";
-      console.error("[upload/receipt] R2 PutObject failed", { name, message, bucket: r2Bucket, key });
-      return NextResponse.json(
-        { error: `R2: ${name} — ${message}` },
-        { status: 502 }
-      );
+      console.error("[upload/receipt] R2 PUT failed", { message, key });
+      return NextResponse.json({ error: `R2: ${message}` }, { status: 502 });
     }
 
     const [receipt] = await db

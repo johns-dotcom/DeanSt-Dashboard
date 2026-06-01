@@ -7,8 +7,6 @@ import { toast } from "sonner";
 import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
 import {
   listNdaFiles,
-  presignNdaFileUpload,
-  recordNdaFile,
   deleteNdaFile,
   getNdaFileDownloadUrl,
 } from "./actions";
@@ -55,27 +53,16 @@ export function NdaFilesPanel({
     setUploading(true);
     try {
       for (const file of arr) {
-        const presigned = await presignNdaFileUpload({
-          ndaId: nda.id,
-          fileName: file.name,
-          contentType: file.type,
-        });
-        if ("error" in presigned) throw new Error(presigned.error ?? "Could not get upload URL");
-        const putRes = await fetch(presigned.uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
-        const recorded = await recordNdaFile({
-          ndaId: nda.id,
-          fileName: file.name,
-          filePath: presigned.key,
-          fileSize: file.size,
-          contentType: file.type,
-        });
-        if ("error" in recorded) throw new Error(recorded.error ?? "Could not record");
-        setFiles((prev) => [...prev, recorded.file]);
+        const form = new FormData();
+        form.append("file", file);
+        form.append("ndaId", nda.id);
+        const res = await fetch("/api/upload/nda", { method: "POST", body: form });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+          throw new Error(body.error ?? `Upload failed (${res.status})`);
+        }
+        const data = await res.json();
+        setFiles((prev) => [...prev, data.file]);
       }
       toast.success(arr.length === 1 ? "File uploaded" : `${arr.length} files uploaded`);
       router.refresh();

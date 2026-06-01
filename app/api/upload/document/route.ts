@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
-import { r2, r2Bucket } from "@/lib/r2";
+import { putObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
@@ -30,9 +29,7 @@ export async function POST(req: NextRequest) {
   const key = `${session.workspace.id}/${client}/${category}/${Date.now()}-${safeName}`;
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  await r2.send(
-    new PutObjectCommand({ Bucket: r2Bucket, Key: key, Body: bytes, ContentType: contentType })
-  );
+  await putObject(key, bytes, contentType);
 
   const [doc] = await db
     .insert(documents)

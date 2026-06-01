@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { ndas, ndaFiles } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
-import { createUploadUrl, createDownloadUrl, deleteObject } from "@/lib/r2";
+import { deleteObject } from "@/lib/r2";
 
 const ndaSchema = z.object({
   recipient_name: z.string().min(1, "Recipient name is required"),
@@ -166,73 +166,6 @@ export async function listNdaFiles(ndaId: string) {
     .orderBy(asc(ndaFiles.uploadedAt));
 }
 
-export async function presignNdaFileUpload(input: {
-  ndaId: string;
-  fileName: string;
-  contentType: string;
-}) {
-  const session = await requireSession();
-  if (session.member.role === "view_only") return { error: "View-only members cannot upload" };
-
-  const [nda] = await db
-    .select({ id: ndas.id })
-    .from(ndas)
-    .where(and(eq(ndas.id, input.ndaId), eq(ndas.workspaceId, session.workspace.id)))
-    .limit(1);
-  if (!nda) return { error: "NDA not found" };
-
-  const safeName = input.fileName.replace(/[^\w.\-]+/g, "_");
-  const key = `${session.workspace.id}/ndas/${input.ndaId}/${Date.now()}-${safeName}`;
-  const uploadUrl = await createUploadUrl(key, input.contentType || "application/octet-stream");
-  return { ok: true as const, uploadUrl, key };
-}
-
-export async function recordNdaFile(input: {
-  ndaId: string;
-  fileName: string;
-  filePath: string;
-  fileSize: number;
-  contentType: string;
-}) {
-  const session = await requireSession();
-  if (session.member.role === "view_only") return { error: "View-only members cannot upload" };
-
-  const [nda] = await db
-    .select({ id: ndas.id, recipientName: ndas.recipientName })
-    .from(ndas)
-    .where(and(eq(ndas.id, input.ndaId), eq(ndas.workspaceId, session.workspace.id)))
-    .limit(1);
-  if (!nda) return { error: "NDA not found" };
-
-  const [file] = await db
-    .insert(ndaFiles)
-    .values({
-      workspaceId: session.workspace.id,
-      ndaId: input.ndaId,
-      fileName: input.fileName,
-      filePath: input.filePath,
-      fileSize: input.fileSize,
-      contentType: input.contentType || null,
-      uploadedBy: session.member.id,
-      uploadedAt: new Date(),
-    })
-    .returning();
-
-  await logActivity({
-    action: "document.uploaded",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "nda_file",
-    entityId: file.id,
-    entityLabel: `${input.fileName} · NDA · ${nda.recipientName}`,
-  });
-
-  revalidatePath("/dashboard/ndas");
-  return { ok: true as const, file };
-}
-
 export async function deleteNdaFile(id: string) {
   const session = await requireSession();
   const [doomed] = await db
@@ -263,11 +196,10 @@ export async function deleteNdaFile(id: string) {
 export async function getNdaFileDownloadUrl(id: string) {
   const session = await requireSession();
   const [r] = await db
-    .select({ filePath: ndaFiles.filePath, fileName: ndaFiles.fileName })
+    .select({ id: ndaFiles.id })
     .from(ndaFiles)
     .where(and(eq(ndaFiles.id, id), eq(ndaFiles.workspaceId, session.workspace.id)))
     .limit(1);
   if (!r) return { error: "File not found" };
-  const url = await createDownloadUrl(r.filePath, r.fileName);
-  return { url };
+  return { url: `/api/files/nda/${id}` };
 }
