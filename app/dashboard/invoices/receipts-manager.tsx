@@ -6,8 +6,6 @@ import { Upload, FileText, Download, Trash2, Loader2, Archive } from "lucide-rea
 import { toast } from "sonner";
 import {
   listReceipts,
-  presignReceiptUpload,
-  recordReceipt,
   deleteReceipt,
   getReceiptDownloadUrl,
 } from "./receipts-actions";
@@ -53,29 +51,16 @@ export function ReceiptsManager({
     setUploading(true);
     try {
       for (const file of arr) {
-        const presigned = await presignReceiptUpload({
-          invoiceId,
-          fileName: file.name,
-          contentType: file.type,
-        });
-        if ("error" in presigned) throw new Error(presigned.error ?? "Could not get upload URL");
-
-        const putRes = await fetch(presigned.uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
-
-        const recorded = await recordReceipt({
-          invoiceId,
-          fileName: file.name,
-          filePath: presigned.key,
-          fileSize: file.size,
-          contentType: file.type,
-        });
-        if ("error" in recorded) throw new Error(recorded.error ?? "Could not record receipt");
-        setReceipts((prev) => [...prev, recorded.receipt]);
+        const form = new FormData();
+        form.append("file", file);
+        form.append("invoiceId", invoiceId);
+        const res = await fetch("/api/upload/receipt", { method: "POST", body: form });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+          throw new Error(body.error ?? `Upload failed (${res.status})`);
+        }
+        const data = await res.json();
+        setReceipts((prev) => [...prev, data.receipt]);
       }
       toast.success(arr.length === 1 ? "Receipt uploaded" : `${arr.length} receipts uploaded`);
       router.refresh();

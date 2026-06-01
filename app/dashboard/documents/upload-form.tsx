@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { presignUpload, recordUpload } from "./actions";
 
 const CATEGORIES = ["Legal", "Admin", "Brand Deals", "Press", "Finance", "Other"];
 
@@ -37,33 +36,17 @@ export function UploadForm({
 
     setBusy(true);
     try {
-      // 1. Ask the server for a presigned upload URL
-      const presigned = await presignUpload({
-        client: clientName,
-        category,
-        file_name: file.name,
-        content_type: file.type,
-      });
-      if ("error" in presigned) throw new Error(presigned.error ?? "Could not create upload URL");
+      const form = new FormData();
+      form.append("file", file);
+      form.append("client", clientName);
+      form.append("category", category);
+      if (subcategory.trim()) form.append("subcategory", subcategory.trim());
 
-      // 2. PUT the file directly to R2
-      const putRes = await fetch(presigned.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
-
-      // 3. Record the document in the DB
-      const recordResult = await recordUpload({
-        client: clientName,
-        category,
-        subcategory: subcategory.trim() || undefined,
-        file_name: file.name,
-        file_path: presigned.key,
-        file_size: file.size,
-      });
-      if ("error" in recordResult) throw new Error(recordResult.error ?? "Could not record upload");
+      const res = await fetch("/api/upload/document", { method: "POST", body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+        throw new Error(body.error ?? `Upload failed (${res.status})`);
+      }
 
       toast.success("File uploaded");
       router.refresh();
