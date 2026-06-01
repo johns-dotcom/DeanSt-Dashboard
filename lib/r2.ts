@@ -1,65 +1,74 @@
 /**
- * R2 client that proxies through a Cloudflare Worker (deanst-r2-proxy)
- * bound directly to the bucket.
+ * R2 client using the standard S3-compatible API with Access Key ID +
+ * Secret Access Key. The cleanest path when you already have legacy R2
+ * tokens (e.g. minted via Cloudflare's older UI or another project).
  *
- * Why a Worker proxy: Cloudflare's new unified API tokens (cfat_…) can't
- * authenticate against R2's S3 endpoint. The official supported path is
- * to access R2 from a Worker with a native binding. A tiny Worker
- * (workers/r2-proxy/) exposes PUT / GET / DELETE on the bucket, and
- * this module talks to it over HTTPS with a shared secret.
+ * Required env vars:
+ *   R2_ACCOUNT_ID         (32-char hex from R2 dashboard)
+ *   R2_ACCESS_KEY_ID      (32-char hex)
+ *   R2_SECRET_ACCESS_KEY  (64-char hex)
+ *   R2_BUCKET             (bucket name, defaults to "deanst")
  *
- * Env vars (Railway):
- *   R2_WORKER_URL     e.g. https://deanst-r2-proxy.john.workers.dev
- *   R2_WORKER_SECRET  same value set via `wrangler secret put SHARED_SECRET`
- *   R2_BUCKET         (informational; kept for log paths)
+ * The Worker fallback (workers/r2-proxy/) is still in the repo if these
+ * credentials are unavailable — flip R2_WORKER_URL + R2_WORKER_SECRET
+ * to use it instead.
  */
 
-const workerUrl = (process.env.R2_WORKER_URL ?? "").replace(/\/+$/, "");
-const sharedSecret = process.env.R2_WORKER_SECRET ?? "";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+
+const accountId = process.env.R2_ACCOUNT_ID ?? "";
+const accessKeyId = process.env.R2_ACCESS_KEY_ID ?? "";
+const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY ?? "";
 export const r2Bucket = process.env.R2_BUCKET ?? "deanst";
 
-function objectUrl(key: string): string {
-  if (!workerUrl) throw new Error("R2 not configured: missing R2_WORKER_URL");
-  if (!sharedSecret) throw new Error("R2 not configured: missing R2_WORKER_SECRET");
-  // Each segment of the key is URL-encoded but the slashes are preserved.
-  const encoded = key.split("/").map(encodeURIComponent).join("/");
-  return `${workerUrl}/${encoded}`;
+const endpoint =
+  process.env.R2_ENDPOINT?.replace(/\/+$/, "") ||
+  (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __r2Client: S3Client | undefined;
 }
 
-function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  return { "x-internal-secret": sharedSecret, ...extra };
-}
-
-async function readError(res: Response): Promise<string> {
-  const text = await res.text().catch(() => "");
-  return text.slice(0, 300) || res.statusText || `HTTP ${res.status}`;
+function client(): S3Client {
+  if (globalThis.__r2Client) return globalThis.__r2Client;
+  if (!endpoint) throw new Error("R2 not configured: missing R2_ACCOUNT_ID or R2_ENDPOINT");
+  if (!accessKeyId) throw new Error("R2 not configured: missing R2_ACCESS_KEY_ID");
+  if (!secretAccessKey) throw new Error("R2 not configured: missing R2_SECRET_ACCESS_KEY");
+  globalThis.__r2Client = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  });
+  return globalThis.__r2Client;
 }
 
 export async function putObject(key: string, body: Buffer | Uint8Array, contentType: string) {
-  // Normalize to a fresh ArrayBuffer for fetch typing
-  const ab = new ArrayBuffer(body.byteLength);
-  new Uint8Array(ab).set(body);
-  const res = await fetch(objectUrl(key), {
-    method: "PUT",
-    headers: authHeaders({ "content-type": contentType || "application/octet-stream" }),
-    body: new Blob([ab], { type: contentType || "application/octet-stream" }),
-  });
-  if (!res.ok) {
-    throw new Error(`R2 PUT ${res.status}: ${await readError(res)}`);
-  }
+  await client().send(
+    new PutObjectCommand({
+      Bucket: r2Bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType || "application/octet-stream",
+    })
+  );
 }
 
 export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string | null }> {
-  const res = await fetch(objectUrl(key), { method: "GET", headers: authHeaders() });
-  if (!res.ok) {
-    throw new Error(`R2 GET ${res.status}: ${await readError(res)}`);
-  }
-  return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") };
+  const res = await client().send(new GetObjectCommand({ Bucket: r2Bucket, Key: key }));
+  if (!res.Body) throw new Error(`R2 GET ${key}: empty body`);
+  const arr = await res.Body.transformToByteArray();
+  const buf = new ArrayBuffer(arr.byteLength);
+  new Uint8Array(buf).set(arr);
+  return { body: buf, contentType: res.ContentType ?? null };
 }
 
 export async function deleteObject(key: string) {
-  const res = await fetch(objectUrl(key), { method: "DELETE", headers: authHeaders() });
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`R2 DELETE ${res.status}: ${await readError(res)}`);
-  }
+  await client().send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
 }
