@@ -1,79 +1,78 @@
 /**
- * R2 client using HTTP Bearer auth against the S3-compatible endpoint.
+ * R2 client using SigV4 with credentials derived from the cfat_ API token.
  *
- * Cloudflare's new unified API tokens (`cfat_...`) authenticate via the
- * Authorization: Bearer header. The legacy Access Key ID + Secret flow is
- * no longer available in the dashboard for newer tenants, and the AWS SDK
- * rejects the 53-char token as an Access Key ID before sending the
- * request. So we talk to R2 with plain fetch() calls.
+ * Cloudflare's new unified API tokens don't expose Access Key ID + Secret
+ * in the dashboard, but the S3 endpoint requires SigV4 (bearer auth is
+ * not accepted). Cloudflare's documented derivation for backwards
+ * compatibility:
+ *   Access Key ID     = first 32 hex chars of SHA-256(token)
+ *   Secret Access Key = full 64-char hex SHA-256 digest
  *
- * All calls run server-side (Node runtime). The browser never sees the
- * bearer token — uploads, downloads, and deletes proxy through the
- * Next.js API routes.
+ * This produces valid S3 credentials we can hand to the AWS SDK.
  */
 
+import { createHash } from "node:crypto";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+
 const accountId = process.env.R2_ACCOUNT_ID ?? "";
-const bearerToken = process.env.R2_BEARER_TOKEN ?? process.env.R2_SECRET_ACCESS_KEY ?? "";
+const apiToken = process.env.R2_BEARER_TOKEN ?? process.env.R2_SECRET_ACCESS_KEY ?? "";
 export const r2Bucket = process.env.R2_BUCKET ?? "deanst";
 
-const endpointBase =
+const endpoint =
   process.env.R2_ENDPOINT?.replace(/\/+$/, "") ||
   (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
 
-function objectUrl(key: string): string {
-  if (!endpointBase) throw new Error("R2 not configured: missing R2_ACCOUNT_ID or R2_ENDPOINT");
-  if (!r2Bucket) throw new Error("R2 not configured: missing R2_BUCKET");
-  if (!bearerToken) throw new Error("R2 not configured: missing R2_BEARER_TOKEN");
-  // Encode each path segment but preserve "/" separators
-  const encoded = key.split("/").map(encodeURIComponent).join("/");
-  return `${endpointBase}/${r2Bucket}/${encoded}`;
+function derivedCredentials() {
+  if (!apiToken) {
+    throw new Error("R2 not configured: missing R2_BEARER_TOKEN");
+  }
+  const sha = createHash("sha256").update(apiToken).digest("hex");
+  return { accessKeyId: sha.slice(0, 32), secretAccessKey: sha };
 }
 
-function amzDate(): string {
-  // ISO 8601 basic format: YYYYMMDDTHHMMSSZ
-  return new Date().toISOString().replace(/[-:]|\.\d{3}/g, "");
+declare global {
+  // eslint-disable-next-line no-var
+  var __r2Client: S3Client | undefined;
 }
 
-function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  // R2's S3 endpoint requires these headers on every request even with
-  // Bearer auth. UNSIGNED-PAYLOAD opts out of the body-integrity check.
-  return {
-    authorization: `Bearer ${bearerToken}`,
-    "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
-    "x-amz-date": amzDate(),
-    ...extra,
-  };
+function client(): S3Client {
+  if (globalThis.__r2Client) return globalThis.__r2Client;
+  if (!endpoint) throw new Error("R2 not configured: missing R2_ACCOUNT_ID or R2_ENDPOINT");
+  const { accessKeyId, secretAccessKey } = derivedCredentials();
+  globalThis.__r2Client = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  });
+  return globalThis.__r2Client;
 }
 
 export async function putObject(key: string, body: Buffer | Uint8Array, contentType: string) {
-  const ab = new ArrayBuffer(body.byteLength);
-  new Uint8Array(ab).set(body);
-  const blob = new Blob([ab], { type: contentType || "application/octet-stream" });
-  const res = await fetch(objectUrl(key), {
-    method: "PUT",
-    headers: authHeaders({ "content-type": contentType || "application/octet-stream" }),
-    body: blob,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`R2 PUT ${res.status}: ${text.slice(0, 200) || res.statusText}`);
-  }
+  await client().send(
+    new PutObjectCommand({
+      Bucket: r2Bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType || "application/octet-stream",
+    })
+  );
 }
 
 export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string | null }> {
-  const res = await fetch(objectUrl(key), { method: "GET", headers: authHeaders() });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`R2 GET ${res.status}: ${text.slice(0, 200) || res.statusText}`);
-  }
-  return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") };
+  const res = await client().send(new GetObjectCommand({ Bucket: r2Bucket, Key: key }));
+  if (!res.Body) throw new Error(`R2 GET ${key}: empty body`);
+  const arr = await res.Body.transformToByteArray();
+  const buf = new ArrayBuffer(arr.byteLength);
+  new Uint8Array(buf).set(arr);
+  return { body: buf, contentType: res.ContentType ?? null };
 }
 
 export async function deleteObject(key: string) {
-  const res = await fetch(objectUrl(key), { method: "DELETE", headers: authHeaders() });
-  // 404 is fine — already gone is the desired state
-  if (!res.ok && res.status !== 404) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 200) || res.statusText}`);
-  }
+  await client().send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
 }
