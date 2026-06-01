@@ -224,45 +224,61 @@ export function InvoiceFormPanel({
               <Plus className="h-3 w-3" /> Add item
             </button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {draft.lineItems.map((it, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 110px 28px", gap: 8 }}>
+              <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 28px", gap: 8 }}>
+                  <input
+                    placeholder="Description"
+                    value={it.description}
+                    onChange={(e) => updateLineItem(idx, { description: e.target.value })}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={it.amount || ""}
+                    onChange={(e) => {
+                      const v = Number(e.target.value || 0);
+                      updateLineItem(idx, { quantity: 1, rate: v, amount: v });
+                    }}
+                    style={{ ...inputStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeLineItem(idx)}
+                    disabled={draft.lineItems.length === 1}
+                    style={{
+                      width: 28,
+                      height: 38,
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--ink-faint)",
+                      cursor: draft.lineItems.length === 1 ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <input
-                  placeholder="Description"
-                  value={it.description}
-                  onChange={(e) => updateLineItem(idx, { description: e.target.value })}
-                  style={inputStyle}
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={it.amount || ""}
-                  onChange={(e) => {
-                    const v = Number(e.target.value || 0);
-                    updateLineItem(idx, { quantity: 1, rate: v, amount: v });
-                  }}
-                  style={{ ...inputStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeLineItem(idx)}
-                  disabled={draft.lineItems.length === 1}
+                  placeholder="Add a longer description (optional)"
+                  value={it.notes ?? ""}
+                  onChange={(e) => updateLineItem(idx, { notes: e.target.value })}
                   style={{
-                    width: 28,
-                    height: 38,
+                    ...inputStyle,
+                    width: "calc(100% - 36px)",
+                    padding: "7px 10px",
+                    fontSize: 12.5,
+                    color: "var(--ink-soft)",
                     background: "transparent",
-                    border: "none",
-                    color: "var(--ink-faint)",
-                    cursor: draft.lineItems.length === 1 ? "not-allowed" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    borderStyle: "dashed",
                   }}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                />
               </div>
             ))}
           </div>

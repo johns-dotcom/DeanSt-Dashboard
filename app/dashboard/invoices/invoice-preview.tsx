@@ -136,13 +136,29 @@ export function InvoicePreviewPanel({
             style={{
               display: "flex",
               justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 16,
               padding: "10px 0",
               borderBottom: "1px solid var(--hair)",
               color: "var(--ink-soft)",
             }}
           >
-            <span>{it.description || "Description"}</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div>{it.description || "Description"}</div>
+              {it.notes ? (
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--ink-faint)",
+                    marginTop: 3,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {it.notes}
+                </div>
+              ) : null}
+            </div>
+            <span style={{ fontVariantNumeric: "tabular-nums", flex: "none" }}>
               {formatCurrency(Number(it.amount || Number(it.quantity || 0) * Number(it.rate || 0))).replace("$", "")} $
             </span>
           </div>

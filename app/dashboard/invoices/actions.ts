@@ -10,6 +10,7 @@ import { logActivity } from "@/lib/activity";
 
 const lineItemSchema = z.object({
   description: z.string(),
+  notes: z.string().optional(),
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number().min(0),
   amount: z.coerce.number().min(0),

@@ -105,6 +105,7 @@ export const workspaceInvites = pgTable("workspace_invites", {
 
 export interface LineItem {
   description: string;
+  notes?: string;
   quantity: number;
   rate: number;
   amount: number;

@@ -116,7 +116,12 @@ export function InvoicePDF({
           </View>
           {invoice.lineItems.map((it, idx) => (
             <View key={idx} style={styles.tr}>
-              <Text style={[styles.td, { flex: 4 }]}>{it.description || "—"}</Text>
+              <View style={{ flex: 4 }}>
+                <Text style={styles.td}>{it.description || "—"}</Text>
+                {it.notes ? (
+                  <Text style={[styles.td, { fontSize: 8, color: "#888", marginTop: 2 }]}>{it.notes}</Text>
+                ) : null}
+              </View>
               <Text style={[styles.td, { flex: 1, textAlign: "right" }]}>{it.quantity}</Text>
               <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.rate))}</Text>
               <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.amount || it.quantity * it.rate))}</Text>
