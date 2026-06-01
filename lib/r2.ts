@@ -29,12 +29,18 @@ function objectUrl(key: string): string {
   return `${endpointBase}/${r2Bucket}/${encoded}`;
 }
 
+function amzDate(): string {
+  // ISO 8601 basic format: YYYYMMDDTHHMMSSZ
+  return new Date().toISOString().replace(/[-:]|\.\d{3}/g, "");
+}
+
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  // R2's S3 endpoint requires this header on every request even with
+  // R2's S3 endpoint requires these headers on every request even with
   // Bearer auth. UNSIGNED-PAYLOAD opts out of the body-integrity check.
   return {
     authorization: `Bearer ${bearerToken}`,
     "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    "x-amz-date": amzDate(),
     ...extra,
   };
 }
