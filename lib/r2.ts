@@ -1,151 +1,65 @@
 /**
- * R2 client using temporary S3 credentials minted from a cfat_ API token.
+ * R2 client that proxies through a Cloudflare Worker (deanst-r2-proxy)
+ * bound directly to the bucket.
  *
- * The new Cloudflare unified API tokens (cfat_...) authenticate to
- * `api.cloudflare.com` but NOT to the S3-compatible endpoint. To use
- * the S3 endpoint we mint short-lived Access Key ID + Secret + Session
- * Token via:
- *   POST /accounts/{account_id}/r2/temp-access-credentials
- *   { bucket, parentAccessKeyId, permission, ttlSeconds }
+ * Why a Worker proxy: Cloudflare's new unified API tokens (cfat_…) can't
+ * authenticate against R2's S3 endpoint. The official supported path is
+ * to access R2 from a Worker with a native binding. A tiny Worker
+ * (workers/r2-proxy/) exposes PUT / GET / DELETE on the bucket, and
+ * this module talks to it over HTTPS with a shared secret.
  *
- * Required parent-token permission: "Workers R2 Storage Bucket Item"
- * with Read + Edit — exactly what the user's token has.
- *
- * Credentials get cached in-process until ~30s before expiry, then
- * silently refreshed on next use.
+ * Env vars (Railway):
+ *   R2_WORKER_URL     e.g. https://deanst-r2-proxy.john.workers.dev
+ *   R2_WORKER_SECRET  same value set via `wrangler secret put SHARED_SECRET`
+ *   R2_BUCKET         (informational; kept for log paths)
  */
 
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-} from "@aws-sdk/client-s3";
-
-const accountId = process.env.R2_ACCOUNT_ID ?? "";
-const apiToken = process.env.R2_BEARER_TOKEN ?? process.env.R2_SECRET_ACCESS_KEY ?? "";
+const workerUrl = (process.env.R2_WORKER_URL ?? "").replace(/\/+$/, "");
+const sharedSecret = process.env.R2_WORKER_SECRET ?? "";
 export const r2Bucket = process.env.R2_BUCKET ?? "deanst";
 
-const endpoint =
-  process.env.R2_ENDPOINT?.replace(/\/+$/, "") ||
-  (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
-
-interface TempCreds {
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken: string;
-  expiresAt: number; // unix ms
+function objectUrl(key: string): string {
+  if (!workerUrl) throw new Error("R2 not configured: missing R2_WORKER_URL");
+  if (!sharedSecret) throw new Error("R2 not configured: missing R2_WORKER_SECRET");
+  // Each segment of the key is URL-encoded but the slashes are preserved.
+  const encoded = key.split("/").map(encodeURIComponent).join("/");
+  return `${workerUrl}/${encoded}`;
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __r2Creds: TempCreds | undefined;
-  // eslint-disable-next-line no-var
-  var __r2Client: S3Client | undefined;
-  // eslint-disable-next-line no-var
-  var __r2ClientCredsAt: number | undefined;
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { "x-internal-secret": sharedSecret, ...extra };
 }
 
-async function mintTempCredentials(): Promise<TempCreds> {
-  if (!accountId) throw new Error("R2 not configured: missing R2_ACCOUNT_ID");
-  if (!apiToken) throw new Error("R2 not configured: missing R2_BEARER_TOKEN");
-
-  const ttlSeconds = 3600; // max allowed by Cloudflare
-  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/r2/temp-access-credentials`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiToken}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      bucket: r2Bucket,
-      permission: "object-read-write",
-      ttlSeconds,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`R2 temp-access-credentials ${res.status}: ${text.slice(0, 300) || res.statusText}`);
-  }
-
-  const data = (await res.json()) as {
-    success?: boolean;
-    errors?: { code?: number; message?: string }[];
-    result?: { accessKeyId?: string; secretAccessKey?: string; sessionToken?: string };
-  };
-
-  if (data.success === false || !data.result?.accessKeyId || !data.result?.secretAccessKey || !data.result?.sessionToken) {
-    const errs = (data.errors ?? []).map((e) => `${e.code ?? ""} ${e.message ?? ""}`.trim()).join("; ");
-    throw new Error(`R2 temp-access-credentials returned no creds: ${errs || JSON.stringify(data).slice(0, 200)}`);
-  }
-
-  return {
-    accessKeyId: data.result.accessKeyId,
-    secretAccessKey: data.result.secretAccessKey,
-    sessionToken: data.result.sessionToken,
-    expiresAt: Date.now() + ttlSeconds * 1000,
-  };
-}
-
-async function getCreds(): Promise<TempCreds> {
-  const cached = globalThis.__r2Creds;
-  if (cached && cached.expiresAt - Date.now() > 30_000) return cached;
-  const fresh = await mintTempCredentials();
-  globalThis.__r2Creds = fresh;
-  // Force a new S3Client next time so it picks up the new creds
-  globalThis.__r2Client = undefined;
-  globalThis.__r2ClientCredsAt = undefined;
-  return fresh;
-}
-
-async function client(): Promise<S3Client> {
-  if (!endpoint) throw new Error("R2 not configured: missing R2_ACCOUNT_ID or R2_ENDPOINT");
-  const creds = await getCreds();
-  if (
-    globalThis.__r2Client &&
-    globalThis.__r2ClientCredsAt === creds.expiresAt
-  ) {
-    return globalThis.__r2Client;
-  }
-  globalThis.__r2Client = new S3Client({
-    region: "auto",
-    endpoint,
-    credentials: {
-      accessKeyId: creds.accessKeyId,
-      secretAccessKey: creds.secretAccessKey,
-      sessionToken: creds.sessionToken,
-    },
-    forcePathStyle: true,
-  });
-  globalThis.__r2ClientCredsAt = creds.expiresAt;
-  return globalThis.__r2Client;
+async function readError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  return text.slice(0, 300) || res.statusText || `HTTP ${res.status}`;
 }
 
 export async function putObject(key: string, body: Buffer | Uint8Array, contentType: string) {
-  const c = await client();
-  await c.send(
-    new PutObjectCommand({
-      Bucket: r2Bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType || "application/octet-stream",
-    })
-  );
+  // Normalize to a fresh ArrayBuffer for fetch typing
+  const ab = new ArrayBuffer(body.byteLength);
+  new Uint8Array(ab).set(body);
+  const res = await fetch(objectUrl(key), {
+    method: "PUT",
+    headers: authHeaders({ "content-type": contentType || "application/octet-stream" }),
+    body: new Blob([ab], { type: contentType || "application/octet-stream" }),
+  });
+  if (!res.ok) {
+    throw new Error(`R2 PUT ${res.status}: ${await readError(res)}`);
+  }
 }
 
 export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string | null }> {
-  const c = await client();
-  const res = await c.send(new GetObjectCommand({ Bucket: r2Bucket, Key: key }));
-  if (!res.Body) throw new Error(`R2 GET ${key}: empty body`);
-  const arr = await res.Body.transformToByteArray();
-  const buf = new ArrayBuffer(arr.byteLength);
-  new Uint8Array(buf).set(arr);
-  return { body: buf, contentType: res.ContentType ?? null };
+  const res = await fetch(objectUrl(key), { method: "GET", headers: authHeaders() });
+  if (!res.ok) {
+    throw new Error(`R2 GET ${res.status}: ${await readError(res)}`);
+  }
+  return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") };
 }
 
 export async function deleteObject(key: string) {
-  const c = await client();
-  await c.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+  const res = await fetch(objectUrl(key), { method: "DELETE", headers: authHeaders() });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`R2 DELETE ${res.status}: ${await readError(res)}`);
+  }
 }

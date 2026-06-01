@@ -1,0 +1,7 @@
+name = "deanst-r2-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+# Bind the deanst R2 bucket as env.BUCKET inside the Worker.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "deanst"
