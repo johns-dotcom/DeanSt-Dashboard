@@ -30,7 +30,13 @@ function objectUrl(key: string): string {
 }
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  return { authorization: `Bearer ${bearerToken}`, ...extra };
+  // R2's S3 endpoint requires this header on every request even with
+  // Bearer auth. UNSIGNED-PAYLOAD opts out of the body-integrity check.
+  return {
+    authorization: `Bearer ${bearerToken}`,
+    "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    ...extra,
+  };
 }
 
 export async function putObject(key: string, body: Buffer | Uint8Array, contentType: string) {
