@@ -199,6 +199,37 @@ export const invoiceClientPages = pgTable("invoice_client_pages", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const ndas = pgTable("ndas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  recipientName: text("recipient_name").notNull(),
+  recipientAddress: text("recipient_address"),
+  effectiveDate: date("effective_date"),
+  ownerName: text("owner_name").notNull().default("Dean St Co"),
+  ownerAddress: text("owner_address"),
+  ownerSignatoryName: text("owner_signatory_name"),
+  ownerSignatoryPosition: text("owner_signatory_position"),
+  disclosingToName: text("disclosing_to_name"),
+  signed: boolean("signed").notNull().default(false),
+  signedAt: timestamp("signed_at"),
+  createdBy: uuid("created_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const ndaFiles = pgTable("nda_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  ndaId: uuid("nda_id").notNull().references(() => ndas.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull().default(0),
+  contentType: text("content_type"),
+  uploadedBy: uuid("uploaded_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const invoiceReceipts = pgTable("invoice_receipts", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -253,6 +284,8 @@ export type Document = typeof documents.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type InvoiceClientPage = typeof invoiceClientPages.$inferSelect;
 export type InvoiceReceipt = typeof invoiceReceipts.$inferSelect;
+export type Nda = typeof ndas.$inferSelect;
+export type NdaFile = typeof ndaFiles.$inferSelect;
 
 export type Role = (typeof roleEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];

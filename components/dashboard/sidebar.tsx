@@ -22,9 +22,20 @@ type NavEntry = {
   Icon: React.ComponentType<{ className?: string }>;
 };
 
+function NdaIcon({ className }: { className?: string }) {
+  return (
+    <svg className={`stroke-current ${className ?? ""}`} width="18" height="18" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
+      <path d="M6 2.5h6l3 3V17a.5.5 0 0 1-.5.5h-9A.5.5 0 0 1 5 17V3a.5.5 0 0 1 .5-.5Z" />
+      <path d="M11 2.5V5.5h3" />
+      <path d="M8 13.5c1-1.2 2.4-1.2 3.5 0s2.5 1.2 3.5 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const WORKSPACE_NAV: NavEntry[] = [
   { label: "Overview", href: "/dashboard", Icon: GridIcon },
   { label: "Invoices", href: "/dashboard/invoices", Icon: DocIcon },
+  { label: "NDAs", href: "/dashboard/ndas", Icon: NdaIcon },
   { label: "Deals", href: "/dashboard/deals", Icon: BriefcaseIcon },
   { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
   { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
