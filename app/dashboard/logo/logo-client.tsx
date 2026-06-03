@@ -21,6 +21,27 @@ const NAVY = "#1d3c8e";
 const INK = "#1a1715";
 const CREAM = "#f6efe1";
 
+function streetSignSvg({ bg, panel, ink }: { bg: string | null; panel: string; ink: string }) {
+  // Street-sign lockup: navy panel, inset white outline, north marker
+  // top-left, EST · 25 top-right, "DEAN" / "ST co" in a 2-line block.
+  // 720×520 viewBox gives room for a generous cream margin around the sign.
+  const bgRect = bg ? `<rect width="720" height="520" fill="${bg}"/>` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" width="720" height="520">
+  ${bgRect}
+  <rect x="40" y="60" width="640" height="400" rx="14" fill="${panel}"/>
+  <rect x="52" y="72" width="616" height="376" rx="8" fill="none" stroke="${ink}" stroke-width="3"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="${ink}">
+    <g transform="translate(78,114)">
+      <path d="M0 -3 L0 -22 M-6 -16 L0 -22 L6 -16" stroke="${ink}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="16" y="0" font-size="22" font-weight="500" letter-spacing="2">N</text>
+    </g>
+    <text x="642" y="114" font-size="22" font-weight="500" letter-spacing="3" text-anchor="end">EST · 25</text>
+    <text x="78" y="290" font-size="150" font-weight="900" letter-spacing="-2">DEAN</text>
+    <text x="78" y="428" font-size="150" font-weight="900" letter-spacing="-2">ST<tspan dx="10" dy="-34" font-size="36" font-weight="600" letter-spacing="2">co</tspan></text>
+  </g>
+</svg>`;
+}
+
 function signSvg({ fg, stroke, bg }: { fg: string; stroke: string; bg: string | null }) {
   // 460 × 140 viewBox. Generous padding to match the in-app sign-plate.
   // Outer outline (stroke) + inner panel (fg).
@@ -57,6 +78,30 @@ type Variant = {
 };
 
 const VARIANTS: Variant[] = [
+  {
+    id: "street-sign-on-cream",
+    title: "Street Sign — On Cream",
+    description: "Hero lockup with North marker and EST · 25. The signature mark.",
+    svg: streetSignSvg({ bg: CREAM, panel: NAVY, ink: "#ffffff" }),
+    previewBg: CREAM,
+    pngWidths: [800, 1600, 3200],
+  },
+  {
+    id: "street-sign-transparent",
+    title: "Street Sign — Transparent",
+    description: "Same lockup with no surrounding fill. Drops onto any background.",
+    svg: streetSignSvg({ bg: null, panel: NAVY, ink: "#ffffff" }),
+    previewBg: CREAM,
+    pngWidths: [800, 1600, 3200],
+  },
+  {
+    id: "street-sign-mono-black",
+    title: "Street Sign — Black & White",
+    description: "Monochrome variant for print, fax, single-color reproduction.",
+    svg: streetSignSvg({ bg: "#ffffff", panel: INK, ink: "#ffffff" }),
+    previewBg: "#ffffff",
+    pngWidths: [800, 1600, 3200],
+  },
   {
     id: "sign-navy-on-cream",
     title: "Sign — Navy on Cream",
