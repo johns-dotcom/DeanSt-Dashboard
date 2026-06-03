@@ -17,8 +17,37 @@ const CREAM = "#f6efe1";
 const CREAM_DEEP = "#f0e6d2";
 const INK = "#1a1715";
 const INK_SOFT = "#6b5e54";
+const WHITE = "#ffffff";
 
 /* ─────────────── SVG generators ─────────────── */
+
+// Site Logo — the canonical website pill that lives in the sidebar.
+// Mimics the SignPlate component's outer-outline / white-border / inner-fill
+// stack. Used everywhere in the app chrome.
+function siteLogoSvg({
+  bg,
+  outer,
+  border,
+  fill,
+  text,
+}: {
+  bg: string | null;
+  outer: string;
+  border: string;
+  fill: string;
+  text: string;
+}) {
+  const bgRect = bg ? `<rect width="720" height="200" fill="${bg}"/>` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" width="720" height="200">
+  ${bgRect}
+  <g transform="translate(40, 30)">
+    <rect width="640" height="140" rx="10" fill="${outer}"/>
+    <rect x="5" y="5" width="630" height="130" rx="7" fill="${border}"/>
+    <rect x="10" y="10" width="620" height="120" rx="4" fill="${fill}"/>
+    <text x="52" y="98" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700" fill="${text}" letter-spacing="1.5">DEAN ST<tspan dx="18" dy="-22" font-size="28" font-weight="500" opacity="0.85" letter-spacing="3">CO</tspan></text>
+  </g>
+</svg>`;
+}
 
 function streetSignSvg({ bg, panel, ink }: { bg: string | null; panel: string; ink: string }) {
   const bgRect = bg ? `<rect width="720" height="520" fill="${bg}"/>` : "";
@@ -112,9 +141,15 @@ function northMarkerSvg({ bg, panel, ink }: { bg: string | null; panel: string; 
 </svg>`;
 }
 
+// Strip explicit width/height attributes so the injected SVG flexes to
+// fill its container while keeping its aspect ratio via viewBox.
+function flexSvg(svg: string) {
+  return svg.replace(/\swidth="[^"]*"/, "").replace(/\sheight="[^"]*"/, "");
+}
+
 /* ─────────────── Variant catalog ─────────────── */
 
-type Category = "lockup" | "wordmark" | "mark" | "stamp";
+type Category = "site" | "lockup" | "wordmark" | "mark" | "stamp";
 
 type Variant = {
   id: string;
@@ -128,20 +163,59 @@ type Variant = {
 };
 
 const VARIANTS: Variant[] = [
-  // ── Primary Lockups ──
+  // ── Site Logo ── (the canonical pill that lives in the sidebar)
+  {
+    id: "site-logo-navy",
+    title: "Site Logo · Navy",
+    description: "The canonical mark used throughout the website UI.",
+    category: "site",
+    svg: siteLogoSvg({ bg: CREAM, outer: NAVY, border: WHITE, fill: NAVY, text: WHITE }),
+    previewBg: CREAM,
+    pngWidths: [800, 1600, 3200],
+  },
+  {
+    id: "site-logo-transparent",
+    title: "Site Logo · Transparent",
+    description: "No surrounding fill. Drop onto any cream/light surface.",
+    category: "site",
+    svg: siteLogoSvg({ bg: null, outer: NAVY, border: WHITE, fill: NAVY, text: WHITE }),
+    previewBg: WHITE,
+    transparent: true,
+    pngWidths: [800, 1600, 3200],
+  },
+  {
+    id: "site-logo-reversed",
+    title: "Site Logo · Reversed",
+    description: "Cream pill with navy text on navy backgrounds.",
+    category: "site",
+    svg: siteLogoSvg({ bg: NAVY, outer: CREAM, border: NAVY, fill: CREAM, text: NAVY }),
+    previewBg: NAVY,
+    pngWidths: [800, 1600, 3200],
+  },
+  {
+    id: "site-logo-mono",
+    title: "Site Logo · Black",
+    description: "Monochrome variant for print, fax, single-color reproduction.",
+    category: "site",
+    svg: siteLogoSvg({ bg: WHITE, outer: INK, border: WHITE, fill: INK, text: WHITE }),
+    previewBg: WHITE,
+    pngWidths: [800, 1600, 3200],
+  },
+
+  // ── Primary Lockups ── (the big "street sign" mark)
   {
     id: "lockup-street-cream",
     title: "Street Sign · On Cream",
-    description: "Hero lockup. The signature mark — use everywhere unless constrained.",
+    description: "Hero lockup. Use for covers, decks, posters, and merchandise.",
     category: "lockup",
-    svg: streetSignSvg({ bg: CREAM, panel: NAVY, ink: "#ffffff" }),
+    svg: streetSignSvg({ bg: CREAM, panel: NAVY, ink: WHITE }),
     previewBg: CREAM,
     pngWidths: [800, 1600, 3200],
   },
   {
     id: "lockup-street-navy",
     title: "Street Sign · Reversed",
-    description: "Cream panel on navy. Use over dark photos or as a hero on dark covers.",
+    description: "Cream panel on navy. Over dark photos or as a hero on dark covers.",
     category: "lockup",
     svg: streetSignSvg({ bg: NAVY, panel: CREAM, ink: NAVY }),
     previewBg: NAVY,
@@ -152,26 +226,26 @@ const VARIANTS: Variant[] = [
     title: "Street Sign · Transparent",
     description: "No background. Drop onto any light surface.",
     category: "lockup",
-    svg: streetSignSvg({ bg: null, panel: NAVY, ink: "#ffffff" }),
-    previewBg: "#ffffff",
+    svg: streetSignSvg({ bg: null, panel: NAVY, ink: WHITE }),
+    previewBg: WHITE,
     transparent: true,
     pngWidths: [800, 1600, 3200],
   },
   {
     id: "lockup-street-mono-black",
     title: "Street Sign · Black",
-    description: "Monochrome for print, fax, foil, embossing.",
+    description: "Monochrome for print, foil, embossing.",
     category: "lockup",
-    svg: streetSignSvg({ bg: "#ffffff", panel: INK, ink: "#ffffff" }),
-    previewBg: "#ffffff",
+    svg: streetSignSvg({ bg: WHITE, panel: INK, ink: WHITE }),
+    previewBg: WHITE,
     pngWidths: [800, 1600, 3200],
   },
   {
     id: "lockup-street-mono-white",
     title: "Street Sign · White on Black",
-    description: "Monochrome reverse. Use on overlays or dark print.",
+    description: "Monochrome reverse. Overlays or dark print.",
     category: "lockup",
-    svg: streetSignSvg({ bg: INK, panel: "#ffffff", ink: INK }),
+    svg: streetSignSvg({ bg: INK, panel: WHITE, ink: INK }),
     previewBg: INK,
     pngWidths: [800, 1600, 3200],
   },
@@ -180,7 +254,7 @@ const VARIANTS: Variant[] = [
   {
     id: "wordmark-stacked-navy",
     title: "Wordmark · Stacked",
-    description: "Two-line wordmark in navy. Great for letterhead, deck covers.",
+    description: "Type-only mark, two lines. Letterhead, deck covers.",
     category: "wordmark",
     svg: wordmarkStackedSvg({ bg: CREAM, ink: NAVY }),
     previewBg: CREAM,
@@ -188,8 +262,8 @@ const VARIANTS: Variant[] = [
   },
   {
     id: "wordmark-stacked-cream",
-    title: "Wordmark · Stacked · Reversed",
-    description: "Cream wordmark on navy. For dark backgrounds.",
+    title: "Wordmark · Reversed",
+    description: "Cream wordmark on navy.",
     category: "wordmark",
     svg: wordmarkStackedSvg({ bg: NAVY, ink: CREAM }),
     previewBg: NAVY,
@@ -206,11 +280,11 @@ const VARIANTS: Variant[] = [
   },
   {
     id: "wordmark-horizontal-transparent",
-    title: "Wordmark · Horizontal · Transparent",
-    description: "Single-line wordmark with no fill. Drop onto any surface.",
+    title: "Wordmark · Transparent",
+    description: "Single-line wordmark with no fill. Drops onto any surface.",
     category: "wordmark",
     svg: wordmarkHorizontalSvg({ bg: null, ink: NAVY }),
-    previewBg: "#ffffff",
+    previewBg: WHITE,
     transparent: true,
     pngWidths: [800, 1600, 3200],
   },
@@ -219,16 +293,16 @@ const VARIANTS: Variant[] = [
   {
     id: "mark-square-navy",
     title: "DS Square · Navy",
-    description: "App icon, favicon, avatar. The default mark.",
+    description: "App icon, favicon, avatar.",
     category: "mark",
-    svg: markSquareSvg({ bg: NAVY, fg: "#ffffff", border: "#ffffff" }),
+    svg: markSquareSvg({ bg: NAVY, fg: WHITE, border: WHITE }),
     previewBg: CREAM,
     pngWidths: [256, 512, 1024],
   },
   {
     id: "mark-square-cream",
-    title: "DS Square · Cream on Navy",
-    description: "Warm-toned mark — pairs with the cream sign lockup.",
+    title: "DS Square · Cream",
+    description: "Warm-toned mark pairing with the cream lockups.",
     category: "mark",
     svg: markSquareSvg({ bg: NAVY, fg: CREAM, border: CREAM }),
     previewBg: CREAM,
@@ -239,16 +313,16 @@ const VARIANTS: Variant[] = [
     title: "DS Square · Black",
     description: "Mono mark for print, embossing, foil.",
     category: "mark",
-    svg: markSquareSvg({ bg: "#ffffff", fg: INK, border: INK }),
+    svg: markSquareSvg({ bg: WHITE, fg: INK, border: INK }),
     previewBg: CREAM,
     pngWidths: [256, 512, 1024],
   },
   {
     id: "mark-circle-navy",
     title: "DS Circle · Navy",
-    description: "Circular mark for social avatars, profile shots, badges.",
+    description: "Circular mark for social avatars, profile shots.",
     category: "mark",
-    svg: markCircleSvg({ bg: NAVY, fg: "#ffffff", border: "#ffffff" }),
+    svg: markCircleSvg({ bg: NAVY, fg: WHITE, border: WHITE }),
     previewBg: CREAM,
     pngWidths: [256, 512, 1024],
   },
@@ -266,9 +340,9 @@ const VARIANTS: Variant[] = [
   {
     id: "stamp-round-navy",
     title: "Round Stamp · Navy",
-    description: "Decorative seal with the street-sign elements. Use sparingly.",
+    description: "Decorative seal combining the street-sign elements.",
     category: "stamp",
-    svg: roundStampSvg({ bg: CREAM, panel: NAVY, ink: "#ffffff" }),
+    svg: roundStampSvg({ bg: CREAM, panel: NAVY, ink: WHITE }),
     previewBg: CREAM,
     pngWidths: [400, 800, 1600],
   },
@@ -283,24 +357,32 @@ const VARIANTS: Variant[] = [
   },
   {
     id: "stamp-north-marker",
-    title: "North Marker · Navy",
-    description: "Standalone ↑ N badge — for footers, watermarks, end marks.",
+    title: "North Marker",
+    description: "Standalone ↑ N badge — footers, watermarks, end marks.",
     category: "stamp",
-    svg: northMarkerSvg({ bg: CREAM, panel: NAVY, ink: "#ffffff" }),
+    svg: northMarkerSvg({ bg: CREAM, panel: NAVY, ink: WHITE }),
     previewBg: CREAM,
     pngWidths: [240, 480, 960],
   },
 ];
 
+const SECTIONS: { key: Category; numeral: string; title: string; subtitle: string; minWidth: number }[] = [
+  { key: "site", numeral: "I", title: "Site Logo", subtitle: "The canonical website mark. Used throughout the dashboard chrome.", minWidth: 320 },
+  { key: "lockup", numeral: "II", title: "Primary Lockups", subtitle: "The full street-sign mark. Default whenever space allows.", minWidth: 340 },
+  { key: "wordmark", numeral: "III", title: "Wordmarks", subtitle: "Type-only versions. For when the box would be too heavy.", minWidth: 300 },
+  { key: "mark", numeral: "IV", title: "Marks & Monograms", subtitle: "DS reductions for avatars, favicons, and tight spaces.", minWidth: 220 },
+  { key: "stamp", numeral: "V", title: "Stamps & Badges", subtitle: "Decorative seals. Use sparingly, never as the primary identity.", minWidth: 240 },
+];
+
 /* ─────────────── Brand palette ─────────────── */
 
 const PALETTE: { name: string; hex: string; usage: string; fg: string }[] = [
-  { name: "Navy", hex: NAVY, usage: "Primary brand color · sign panel · accents", fg: "#ffffff" },
-  { name: "Navy Soft", hex: NAVY_SOFT, usage: "Hover · secondary chrome", fg: "#ffffff" },
+  { name: "Navy", hex: NAVY, usage: "Primary brand color · sign panel · accents", fg: WHITE },
+  { name: "Navy Soft", hex: NAVY_SOFT, usage: "Hover · secondary chrome", fg: WHITE },
   { name: "Cream", hex: CREAM, usage: "Paper · page background", fg: INK },
   { name: "Cream Deep", hex: CREAM_DEEP, usage: "Card lifts · section dividers", fg: INK },
-  { name: "Ink", hex: INK, usage: "Body text · mono prints", fg: "#ffffff" },
-  { name: "Ink Soft", hex: INK_SOFT, usage: "Secondary text · captions", fg: "#ffffff" },
+  { name: "Ink", hex: INK, usage: "Body text · mono prints", fg: WHITE },
+  { name: "Ink Soft", hex: INK_SOFT, usage: "Secondary text · captions", fg: WHITE },
 ];
 
 /* ─────────────── Download helpers ─────────────── */
@@ -359,34 +441,35 @@ async function downloadPng(variant: Variant, width: number) {
 async function downloadBrandKit() {
   const zip = new JSZip();
   const svgDir = zip.folder("svg");
-  const pngDir = zip.folder("png_1600");
+  const pngDir = zip.folder("png");
   if (!svgDir || !pngDir) throw new Error("Could not initialize archive");
 
   for (const v of VARIANTS) {
     svgDir.file(`${v.id}.svg`, v.svg);
-    // Pick a reasonable PNG size per variant — second-largest where
-    // available. Avoids huge files while still being high-quality.
     const widthPick = v.pngWidths[Math.max(0, v.pngWidths.length - 2)];
     try {
       const png = await svgToPngBlob(v.svg, widthPick);
       pngDir.file(`${v.id}_${widthPick}.png`, png);
     } catch {
-      // If a particular PNG fails we still want the rest of the bundle
+      // skip a single failure rather than abort the whole bundle
     }
   }
 
   const readme = [
-    "Dean St — Brand assets",
+    "DEAN ST · BRAND KIT",
+    "===================",
     "",
     "SVG: scalable, preferred for web and print.",
     "PNG: rasterized at standard widths for documents and decks.",
     "",
-    "Palette:",
+    "PALETTE",
     ...PALETTE.map((p) => `  ${p.name.padEnd(12)} ${p.hex}   ${p.usage}`),
     "",
-    "Typography: Arial / Helvetica (system grotesque).",
+    "TYPOGRAPHY",
+    "  Arial / Helvetica (system grotesque)",
     "",
-    "Questions: john@deanst.co",
+    "QUESTIONS",
+    "  john@deanst.co",
   ].join("\n");
   zip.file("README.txt", readme);
 
@@ -398,21 +481,16 @@ async function downloadBrandKit() {
 
 const CHECKER_BG: React.CSSProperties = {
   backgroundImage:
-    "linear-gradient(45deg, rgba(0,0,0,0.06) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.06) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.06) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.06) 75%)",
-  backgroundSize: "18px 18px",
-  backgroundPosition: "0 0, 0 9px, 9px -9px, -9px 0",
+    "linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.05) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.05) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.05) 75%)",
+  backgroundSize: "20px 20px",
+  backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0",
+  background: "#fbfaf6",
 };
-
-const SECTIONS: { key: Category; title: string; subtitle: string; minWidth: number }[] = [
-  { key: "lockup", title: "Primary Lockups", subtitle: "The full street-sign mark. The default whenever space allows.", minWidth: 340 },
-  { key: "wordmark", title: "Wordmarks", subtitle: "Type-only versions of the mark. For when the box would be too heavy.", minWidth: 320 },
-  { key: "mark", title: "Marks & Monograms", subtitle: "DS reductions — for avatars, favicons, and tight spaces.", minWidth: 240 },
-  { key: "stamp", title: "Stamps & Badges", subtitle: "Decorative seals. Use sparingly, never as the primary identity.", minWidth: 240 },
-];
 
 export function LogoClient() {
   const [zipBusy, setZipBusy] = useState(false);
-  const hero = VARIANTS.find((v) => v.id === "lockup-street-cream")!;
+  const siteHero = VARIANTS.find((v) => v.id === "site-logo-navy")!;
+  const streetHero = VARIANTS.find((v) => v.id === "lockup-street-cream")!;
 
   async function handleZip() {
     if (zipBusy) return;
@@ -428,60 +506,56 @@ export function LogoClient() {
   }
 
   return (
-    <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 36 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 28, flexWrap: "wrap" }}>
-        <div style={{ maxWidth: 540 }}>
+    <div style={{ padding: "32px 40px 64px", display: "flex", flexDirection: "column", gap: 44 }}>
+      {/* ─── Header ─── */}
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}>
+        <div style={{ maxWidth: 600 }}>
           <Eyebrow size={10} spacing={0.36}>№ 09 · Brand</Eyebrow>
-          <h1 style={{ fontFamily: "Arial, sans-serif", fontSize: 34, fontWeight: 600, letterSpacing: "-0.015em", marginTop: 6 }}>
-            Dean St Brand Kit
+          <h1 style={{ fontFamily: "Arial, sans-serif", fontSize: 32, fontWeight: 600, letterSpacing: "-0.015em", marginTop: 8, marginBottom: 0, lineHeight: 1.1 }}>
+            Brand Kit
           </h1>
-          <p style={{ fontSize: 14, color: "var(--ink-soft)", marginTop: 6, lineHeight: 1.55 }}>
-            Every variant of the mark, plus the color palette. SVGs scale infinitely
-            and are preferred for web and print; PNGs are pre-rasterized at standard
-            widths for documents and decks.
+          <p style={{ fontSize: 14, color: "var(--ink-soft)", marginTop: 10, lineHeight: 1.55, marginBottom: 0 }}>
+            Every variant of the Dean St mark, plus the color palette. SVGs scale
+            infinitely; PNGs are pre-rasterized at standard widths for documents
+            and decks.
           </p>
         </div>
         <button onClick={handleZip} disabled={zipBusy} style={btnHero}>
-          {zipBusy ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <span className="dot-pulse" /> Building…
-            </span>
-          ) : (
-            <>
-              <Archive className="h-4 w-4" />
-              Download brand kit (.zip)
-            </>
-          )}
+          {zipBusy ? "Building archive…" : (<><Archive className="h-4 w-4" /> Download brand kit (.zip)</>)}
         </button>
       </header>
 
-      {/* Hero showcase */}
+      {/* ─── Hero showcase: site logo + street sign side-by-side ─── */}
       <section
         style={{
-          background: hero.previewBg,
-          border: "1px solid var(--hair)",
-          borderRadius: 12,
-          padding: "44px 28px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 360,
+          display: "grid",
+          gridTemplateColumns: "minmax(280px, 1fr) minmax(360px, 1.4fr)",
+          gap: 16,
         }}
       >
-        <div style={{ maxWidth: 720, width: "100%" }} dangerouslySetInnerHTML={{ __html: hero.svg }} />
+        <HeroPanel
+          label="Used in the app chrome"
+          variant={siteHero}
+          aspect="2.5/1"
+        />
+        <HeroPanel
+          label="Hero lockup"
+          variant={streetHero}
+          aspect="1.3/1"
+        />
       </section>
 
-      {/* Sections */}
+      {/* ─── Sections ─── */}
       {SECTIONS.map((section) => {
         const variants = VARIANTS.filter((v) => v.category === section.key);
         return (
-          <section key={section.key} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <SectionHeader title={section.title} subtitle={section.subtitle} count={variants.length} />
+          <section key={section.key} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <SectionHeader numeral={section.numeral} title={section.title} subtitle={section.subtitle} count={variants.length} />
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: `repeat(auto-fill, minmax(${section.minWidth}px, 1fr))`,
-                gap: 16,
+                gap: 14,
               }}
             >
               {variants.map((v) => <LogoCard key={v.id} variant={v} />)}
@@ -490,54 +564,92 @@ export function LogoClient() {
         );
       })}
 
-      {/* Color palette */}
-      <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* ─── Palette ─── */}
+      <section style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <SectionHeader
+          numeral="VI"
           title="Color Palette"
-          subtitle="The full brand palette. Click any swatch to copy the hex."
+          subtitle="The full brand palette. Click a swatch to copy the hex."
           count={PALETTE.length}
         />
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            gap: 16,
+            gap: 14,
           }}
         >
           {PALETTE.map((p) => <ColorSwatch key={p.hex} swatch={p} />)}
         </div>
       </section>
 
-      <footer style={{ borderTop: "1px solid var(--hair)", paddingTop: 18, fontSize: 12, color: "var(--ink-faint)" }}>
-        Typography: Arial / Helvetica · Questions: john@deanst.co
+      <footer style={{ borderTop: "1px solid var(--hair)", paddingTop: 18, fontSize: 12, color: "var(--ink-faint)", display: "flex", justifyContent: "space-between" }}>
+        <span>Typography · Arial / Helvetica</span>
+        <span>Questions · john@deanst.co</span>
       </footer>
-
-      {/* Local styles for the loading dot */}
-      <style jsx>{`
-        .dot-pulse {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: currentColor;
-          animation: pulse 1s ease-in-out infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
 
-function SectionHeader({ title, subtitle, count }: { title: string; subtitle: string; count: number }) {
+function HeroPanel({ variant, label, aspect }: { variant: Variant; label: string; aspect: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "1px solid var(--hair)", paddingBottom: 12 }}>
-      <div>
-        <Eyebrow size={10} spacing={0.32}>{title}</Eyebrow>
-        <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, maxWidth: 520 }}>{subtitle}</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="mono" style={{ fontSize: 10, letterSpacing: "0.32em", color: "var(--ink-faint)" }}>
+        {label.toUpperCase()}
       </div>
-      <div className="mono" style={{ fontSize: 11, letterSpacing: "0.18em", color: "var(--ink-faint)" }}>
+      <div
+        style={{
+          background: variant.previewBg,
+          border: "1px solid var(--hair)",
+          borderRadius: 12,
+          aspectRatio: aspect,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+          dangerouslySetInnerHTML={{ __html: flexSvg(variant.svg) }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ numeral, title, subtitle, count }: { numeral: string; title: string; subtitle: string; count: number }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        borderTop: "1px solid var(--hair)",
+        paddingTop: 14,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
+        <span
+          className="mono"
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.28em",
+            color: "var(--ink-faint)",
+            minWidth: 28,
+          }}
+        >
+          {numeral}
+        </span>
+        <div>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em" }}>
+            {title}
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>{subtitle}</div>
+        </div>
+      </div>
+      <div className="mono" style={{ fontSize: 10, letterSpacing: "0.22em", color: "var(--ink-faint)", paddingBottom: 2 }}>
         {count.toString().padStart(2, "0")} VARIANT{count === 1 ? "" : "S"}
       </div>
     </div>
@@ -545,6 +657,7 @@ function SectionHeader({ title, subtitle, count }: { title: string; subtitle: st
 }
 
 function LogoCard({ variant }: { variant: Variant }) {
+  const [hovered, setHovered] = useState(false);
   const [pngBusy, setPngBusy] = useState<number | null>(null);
 
   async function handlePng(w: number) {
@@ -558,53 +671,52 @@ function LogoCard({ variant }: { variant: Variant }) {
     }
   }
 
-  const previewStyle: React.CSSProperties = {
-    padding: "28px 20px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 200,
-    borderBottom: "1px solid var(--hair)",
-    ...(variant.transparent ? CHECKER_BG : { background: variant.previewBg }),
-  };
-
   return (
     <article
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         background: "var(--paper)",
-        border: "1px solid var(--hair)",
+        border: `1px solid ${hovered ? "var(--ink-faint)" : "var(--hair)"}`,
         borderRadius: 10,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        transition: "transform 160ms ease, box-shadow 160ms ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 8px 20px rgba(29,60,142,0.08)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "";
+        transition: "border-color 120ms ease",
       }}
     >
-      <div style={previewStyle}>
-        <div style={{ maxWidth: "100%", display: "flex" }} dangerouslySetInnerHTML={{ __html: variant.svg }} />
+      {/* Preview area — fixed height so cards line up across the grid */}
+      <div
+        style={{
+          height: 200,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "18px 22px",
+          borderBottom: "1px solid var(--hair)",
+          ...(variant.transparent ? CHECKER_BG : { background: variant.previewBg }),
+        }}
+      >
+        <div
+          style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+          dangerouslySetInnerHTML={{ __html: flexSvg(variant.svg) }}
+        />
       </div>
-      <div style={{ padding: "14px 16px 16px", display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+      {/* Meta + downloads */}
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 13.5, fontWeight: 600, letterSpacing: "-0.005em" }}>
               {variant.title}
             </div>
             {variant.transparent ? <TransparentBadge /> : null}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 3, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4, lineHeight: 1.45 }}>
             {variant.description}
           </div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          <button onClick={() => downloadSvg(variant)} style={btnPrimary}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          <button onClick={() => downloadSvg(variant)} style={chipPrimary} title="Download SVG">
             <Download className="h-3 w-3" /> SVG
           </button>
           {variant.pngWidths.map((w) => (
@@ -612,9 +724,10 @@ function LogoCard({ variant }: { variant: Variant }) {
               key={w}
               onClick={() => handlePng(w)}
               disabled={pngBusy === w}
-              style={{ ...btnGhost, opacity: pngBusy === w ? 0.5 : 1 }}
+              style={{ ...chip, opacity: pngBusy === w ? 0.5 : 1 }}
+              title={`PNG @ ${w}px wide`}
             >
-              {pngBusy === w ? "…" : `${w}px`}
+              {pngBusy === w ? "…" : `${w}`}
             </button>
           ))}
         </div>
@@ -644,6 +757,7 @@ function TransparentBadge() {
 
 function ColorSwatch({ swatch }: { swatch: typeof PALETTE[number] }) {
   const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   async function copy() {
     try {
@@ -659,9 +773,11 @@ function ColorSwatch({ swatch }: { swatch: typeof PALETTE[number] }) {
   return (
     <button
       onClick={copy}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         background: "var(--paper)",
-        border: "1px solid var(--hair)",
+        border: `1px solid ${hovered ? "var(--ink-faint)" : "var(--hair)"}`,
         borderRadius: 10,
         overflow: "hidden",
         display: "flex",
@@ -669,15 +785,7 @@ function ColorSwatch({ swatch }: { swatch: typeof PALETTE[number] }) {
         padding: 0,
         textAlign: "left",
         cursor: "pointer",
-        transition: "transform 160ms ease, box-shadow 160ms ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 8px 20px rgba(29,60,142,0.08)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "";
+        transition: "border-color 120ms ease",
       }}
     >
       <div
@@ -691,7 +799,7 @@ function ColorSwatch({ swatch }: { swatch: typeof PALETTE[number] }) {
           justifyContent: "space-between",
         }}
       >
-        <div className="mono" style={{ fontSize: 11, letterSpacing: "0.2em", opacity: 0.8 }}>
+        <div className="mono" style={{ fontSize: 10, letterSpacing: "0.22em", opacity: 0.8 }}>
           {copied ? "COPIED" : "CLICK TO COPY"}
         </div>
         <div style={{ fontFamily: "Arial, sans-serif", fontSize: 18, fontWeight: 600 }}>
@@ -728,35 +836,30 @@ const btnHero: React.CSSProperties = {
   border: "none",
   borderRadius: 8,
   cursor: "pointer",
-  transition: "background 120ms",
 };
 
-const btnPrimary: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "6px 12px",
-  fontSize: 12,
-  fontWeight: 600,
-  fontFamily: "Arial, sans-serif",
-  background: "var(--sign-green)",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
+const chip: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 4,
-  padding: "6px 10px",
+  padding: "5px 9px",
   fontSize: 11.5,
   fontWeight: 500,
   fontFamily: "Arial, sans-serif",
   background: "var(--cream-light)",
   color: "var(--ink)",
   border: "1px solid var(--hair)",
-  borderRadius: 6,
+  borderRadius: 5,
   cursor: "pointer",
+  minWidth: 38,
+  justifyContent: "center",
+};
+
+const chipPrimary: React.CSSProperties = {
+  ...chip,
+  background: "var(--ink)",
+  color: "var(--paper)",
+  borderColor: "var(--ink)",
+  fontWeight: 600,
+  padding: "5px 11px",
 };
