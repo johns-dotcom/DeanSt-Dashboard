@@ -1,36 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { DocumentFolder } from "@/lib/db/schema";
 
 const CATEGORIES = ["Legal", "Admin", "Brand Deals", "Press", "Finance", "Other"];
 
 export function UploadForm({
   workspaceId,
   clients,
+  folders = [],
+  defaultClient,
+  defaultSubcategory,
   onDone,
 }: {
   workspaceId: string;
   clients: string[];
+  folders?: DocumentFolder[];
+  defaultClient?: string;
+  defaultSubcategory?: string;
   onDone: () => void;
 }) {
   void workspaceId; // path is derived server-side
   const router = useRouter();
-  const [client, setClient] = useState(clients[0] ?? "");
+  const initialClient = defaultClient ?? clients[0] ?? "";
+  const [client, setClient] = useState(initialClient);
   const [newClient, setNewClient] = useState("");
   const [category, setCategory] = useState("Legal");
-  const [subcategory, setSubcategory] = useState("");
+  const [subcategory, setSubcategory] = useState(defaultSubcategory ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const activeClient = (newClient.trim() || client).trim();
+  const folderOptions = useMemo(
+    () => folders.filter((f) => f.client === activeClient).map((f) => f.name).sort(),
+    [folders, activeClient]
+  );
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const clientName = (newClient.trim() || client).trim();
+    const clientName = activeClient;
     if (!clientName) { toast.error("Client is required"); return; }
     if (!file) { toast.error("Pick a file"); return; }
 
@@ -89,8 +103,22 @@ export function UploadForm({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="sub">Subcategory</Label>
-          <Input id="sub" value={subcategory} onChange={(e) => setSubcategory(e.target.value)} placeholder="e.g. Contracts" />
+          <Label htmlFor="sub">Subfolder</Label>
+          {folderOptions.length > 0 ? (
+            <Select value={subcategory} onValueChange={setSubcategory}>
+              <SelectTrigger><SelectValue placeholder="Pick or type below" /></SelectTrigger>
+              <SelectContent>
+                {folderOptions.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <Input
+            id="sub"
+            value={subcategory}
+            onChange={(e) => setSubcategory(e.target.value)}
+            placeholder={folderOptions.length ? "Or type a new subfolder" : "e.g. Contracts"}
+            className={folderOptions.length ? "mt-2" : ""}
+          />
         </div>
       </div>
 

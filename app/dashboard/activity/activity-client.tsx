@@ -39,7 +39,7 @@ const CATEGORIES: { value: Category; label: string; Icon: React.ComponentType<{ 
 
 const ACTION_ICON: Record<string, { Icon: React.ComponentType<{ className?: string }>; tint: { bg: string; fg: string } }> = {
   auth: { Icon: LogIn, tint: { bg: "rgba(33, 110, 200, 0.10)", fg: "#216ec8" } },
-  invoice: { Icon: DollarSign, tint: { bg: "rgba(10, 58, 28, 0.12)", fg: "var(--sign-green)" } },
+  invoice: { Icon: DollarSign, tint: { bg: "rgba(29,60,142,0.12)", fg: "var(--sign-green)" } },
   deal: { Icon: TrendingUp, tint: { bg: "rgba(201, 130, 30, 0.14)", fg: "#a36408" } },
   contact: { Icon: Users, tint: { bg: "rgba(124, 58, 200, 0.10)", fg: "#7a3acb" } },
   task: { Icon: CheckSquare, tint: { bg: "rgba(33, 130, 165, 0.10)", fg: "#1f7ea3" } },
@@ -50,7 +50,7 @@ const ACTION_ICON: Record<string, { Icon: React.ComponentType<{ className?: stri
 };
 
 const ROLE_PILL: Record<Role, { bg: string; fg: string; label: string }> = {
-  admin: { bg: "rgba(10, 58, 28, 0.12)", fg: "var(--sign-green)", label: "admin" },
+  admin: { bg: "rgba(29,60,142,0.12)", fg: "var(--sign-green)", label: "admin" },
   member: { bg: "rgba(33, 110, 200, 0.10)", fg: "#216ec8", label: "member" },
   view_only: { bg: "rgba(26, 22, 18, 0.08)", fg: "var(--ink-soft)", label: "view only" },
 };

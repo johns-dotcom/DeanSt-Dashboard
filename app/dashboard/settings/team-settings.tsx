@@ -161,7 +161,7 @@ function RolePill({ role }: { role: Role }) {
     <span
       className="mono"
       style={{
-        background: "rgba(10,58,28,0.10)",
+        background: "rgba(29,60,142,0.10)",
         color: "var(--sign-green)",
         padding: "6px 12px",
         borderRadius: 999,

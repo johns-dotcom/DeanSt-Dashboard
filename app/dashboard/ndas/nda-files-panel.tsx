@@ -116,7 +116,7 @@ export function NdaFilesPanel({
               padding: "28px 22px",
               border: `1.5px dashed ${dragOver ? "var(--sign-green)" : "var(--hair)"}`,
               borderRadius: 10,
-              background: dragOver ? "rgba(10,58,28,0.06)" : "var(--cream-light)",
+              background: dragOver ? "rgba(29,60,142,0.06)" : "var(--cream-light)",
               color: "var(--ink-soft)",
               cursor: uploading ? "not-allowed" : "pointer",
               transition: "background 120ms, border-color 120ms",

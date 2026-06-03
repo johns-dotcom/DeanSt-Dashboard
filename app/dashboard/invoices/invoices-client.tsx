@@ -299,9 +299,9 @@ function ReceiptsButton({ count, onClick }: { count: number; onClick: () => void
       title={count ? `${count} receipt${count === 1 ? "" : "s"}` : "Add receipts"}
       style={{
         ...rowIconStyle,
-        background: count > 0 ? "rgba(10,58,28,0.10)" : rowIconStyle.background,
+        background: count > 0 ? "rgba(29,60,142,0.10)" : rowIconStyle.background,
         color: count > 0 ? "var(--sign-green)" : (rowIconStyle.color as string),
-        borderColor: count > 0 ? "rgba(10,58,28,0.25)" : "var(--hair)",
+        borderColor: count > 0 ? "rgba(29,60,142,0.25)" : "var(--hair)",
         width: "auto",
         paddingLeft: 8,
         paddingRight: count > 0 ? 8 : 10,
@@ -376,7 +376,7 @@ function Td({
 }
 
 const SENT_TONES = {
-  true: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Sent" },
+  true: { bg: "rgba(29,60,142,0.12)", fg: "var(--sign-green)", label: "Sent" },
   false: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Not sent" },
 } as const;
 
@@ -467,7 +467,7 @@ const STATUS_TONES: Record<Invoice["status"], { bg: string; fg: string; label: s
   draft: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Draft" },
   pending: { bg: "rgba(201,100,66,0.14)", fg: "#a01e1e", label: "Unpaid" },
   overdue: { bg: "rgba(160,30,30,0.14)", fg: "#a01e1e", label: "Overdue" },
-  paid: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Paid" },
+  paid: { bg: "rgba(29,60,142,0.12)", fg: "var(--sign-green)", label: "Paid" },
 };
 
 const STATUS_ORDER: Invoice["status"][] = ["draft", "pending", "overdue", "paid"];

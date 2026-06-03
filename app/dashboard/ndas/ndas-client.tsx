@@ -451,9 +451,9 @@ function FilesButton({ count, onClick }: { count: number; onClick: () => void })
       title={count ? `${count} file${count === 1 ? "" : "s"} attached` : "Upload signed copy"}
       style={{
         ...rowIconStyle,
-        background: count > 0 ? "rgba(10,58,28,0.10)" : rowIconStyle.background,
+        background: count > 0 ? "rgba(29,60,142,0.10)" : rowIconStyle.background,
         color: count > 0 ? "var(--sign-green)" : (rowIconStyle.color as string),
-        borderColor: count > 0 ? "rgba(10,58,28,0.25)" : "var(--hair)",
+        borderColor: count > 0 ? "rgba(29,60,142,0.25)" : "var(--hair)",
         width: "auto",
         paddingLeft: 8,
         paddingRight: count > 0 ? 8 : 10,
@@ -467,7 +467,7 @@ function FilesButton({ count, onClick }: { count: number; onClick: () => void })
 }
 
 const SIGNED_TONES = {
-  true: { bg: "rgba(10,58,28,0.12)", fg: "var(--sign-green)", label: "Signed" },
+  true: { bg: "rgba(29,60,142,0.12)", fg: "var(--sign-green)", label: "Signed" },
   false: { bg: "rgba(26,22,18,0.06)", fg: "var(--ink-soft)", label: "Unsigned" },
 } as const;
 

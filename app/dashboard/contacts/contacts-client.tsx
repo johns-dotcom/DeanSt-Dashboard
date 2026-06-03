@@ -291,7 +291,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                     {c.industry ? (
                       <span
                         className="mono"
-                        style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(10,58,28,0.10)", color: "var(--sign-green)" }}
+                        style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(29,60,142,0.10)", color: "var(--sign-green)" }}
                       >
                         {c.industry}
                       </span>
@@ -359,7 +359,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                         {c.industry ? (
                           <span
                             className="mono"
-                            style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(10,58,28,0.10)", color: "var(--sign-green)" }}
+                            style={{ fontSize: 9, letterSpacing: "0.18em", padding: "2px 7px", borderRadius: 999, background: "rgba(29,60,142,0.10)", color: "var(--sign-green)" }}
                           >
                             {c.industry}
                           </span>

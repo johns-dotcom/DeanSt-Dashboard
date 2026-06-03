@@ -4,8 +4,10 @@
 
 @layer base {
   :root {
-    --sign-green: #0a3a1c;
-    --sign-green-soft: #1f5234;
+    /* --sign-green is historically named but holds the brand sign color,
+       which is now Dean St navy blue (matches the updated wordmark). */
+    --sign-green: #1d3c8e;
+    --sign-green-soft: #2a4d9d;
     --cream: #f1ebdf;
     --cream-light: #f7f2e8;
     --cream-deep: #e6dfd0;
@@ -18,8 +20,8 @@
   }
 
   [data-theme="dark"] {
-    --sign-green: #2d6b46;
-    --sign-green-soft: #3d8359;
+    --sign-green: #5677c9;
+    --sign-green-soft: #6e8cd0;
     --cream: #14110d;
     --cream-light: #1b1813;
     --cream-deep: #0e0c09;
