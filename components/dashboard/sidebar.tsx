@@ -13,6 +13,7 @@ import {
   FolderIcon,
   GearIcon,
   ActivityIcon,
+  LogoIcon,
 } from "@/components/brand/icons";
 import type { WorkspaceMember } from "@/lib/db/schema";
 
@@ -40,6 +41,7 @@ const WORKSPACE_NAV: NavEntry[] = [
   { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
   { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
   { label: "Documents", href: "/dashboard/documents", Icon: FolderIcon },
+  { label: "Logo", href: "/dashboard/logo", Icon: LogoIcon },
 ];
 
 function NavLabel({ children }: { children: React.ReactNode }) {

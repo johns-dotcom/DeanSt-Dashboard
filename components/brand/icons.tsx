@@ -62,6 +62,13 @@ export const GearIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const LogoIcon = ({ className }: IconProps) => (
+  <svg className={`${base} ${className ?? ""}`} width="18" height="18" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
+    <rect x="3" y="6" width="14" height="8" rx="1.5" />
+    <rect x="5" y="8" width="10" height="4" rx="0.5" />
+  </svg>
+);
+
 export const MoonIcon = ({ className }: IconProps) => (
   <svg className={`${base} ${className ?? ""}`} width="16" height="16" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
     <path d="M16 11.5A6 6 0 0 1 8.5 4a6 6 0 1 0 7.5 7.5Z" />
