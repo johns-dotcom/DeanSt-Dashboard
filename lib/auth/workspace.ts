@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { workspaceMembers, workspaces, type Workspace, type WorkspaceMember } from "@/lib/db/schema";
@@ -20,10 +20,17 @@ export async function requireSession(): Promise<SessionContext> {
 
   const userId = session.user.id;
 
+  // When a user has multiple memberships, prefer the workspace with the
+  // most members (the shared one) and use oldest-membership as tiebreaker.
+  // This avoids stranding users on accidental duplicate solo workspaces.
   const [member] = await db
     .select()
     .from(workspaceMembers)
     .where(eq(workspaceMembers.userId, userId))
+    .orderBy(
+      sql`(select count(*) from ${workspaceMembers} m2 where m2.workspace_id = ${workspaceMembers.workspaceId}) desc`,
+      sql`${workspaceMembers.createdAt} asc`
+    )
     .limit(1);
 
   if (!member) redirect("/onboarding");
