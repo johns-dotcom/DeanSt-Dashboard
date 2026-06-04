@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Eye, Pencil, Download, Trash2, Paperclip } from "lucide-react";
+import { Eye, Pencil, Download, Trash2, Paperclip, Banknote, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { PageFooter } from "@/components/brand/page-footer";
@@ -9,7 +9,7 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
-import { deleteInvoice, setInvoiceStatus, setInvoiceSent } from "./actions";
+import { deleteInvoice, setInvoiceStatus, setInvoiceSent, setInvoiceType } from "./actions";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -184,7 +184,7 @@ export function InvoicesClient({
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: 'Arial, sans-serif' }}>
             <thead>
               <tr style={{ background: "var(--cream-light)" }}>
-                <Th width={90}>Invoice #</Th>
+                <Th width={120}>Invoice #</Th>
                 <Th>Bill to</Th>
                 <Th>Description</Th>
                 <Th align="right" width={140}>Amount</Th>
@@ -202,8 +202,13 @@ export function InvoicesClient({
                   onClick={() => startEdit(inv)}
                 >
                   <Td>
-                    <span style={{ fontFamily: 'Arial, sans-serif', fontSize: 12.5 }}>
-                      #{inv.invoiceNumber.replace(/^[A-Z]+-?/, "")}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
+                        <TypeMarker type={inv.type} invoiceId={inv.id} invoiceNumber={inv.invoiceNumber} />
+                      </span>
+                      <span style={{ fontFamily: 'Arial, sans-serif', fontSize: 12.5 }}>
+                        #{inv.invoiceNumber.replace(/^[A-Z]+-?/, "")}
+                      </span>
                     </span>
                   </Td>
                   <Td>{inv.client}</Td>
@@ -372,6 +377,83 @@ function Td({
     >
       {children}
     </td>
+  );
+}
+
+// Marks each invoice as income vs a recoupment (a reimbursement of receipted
+// costs). Click to toggle — mirrors the inline-editable Status / Sent cells.
+const TYPE_META = {
+  invoice: {
+    Icon: Banknote,
+    label: "Income",
+    fg: "var(--sign-green)",
+    bg: "rgba(29,60,142,0.10)",
+    border: "rgba(29,60,142,0.22)",
+  },
+  reimbursement: {
+    Icon: Receipt,
+    label: "Recoupment",
+    fg: "#a85b2a",
+    bg: "rgba(201,100,66,0.12)",
+    border: "rgba(201,100,66,0.30)",
+  },
+} as const;
+
+function TypeMarker({
+  type,
+  invoiceId,
+  invoiceNumber,
+}: {
+  type: Invoice["type"];
+  invoiceId: string;
+  invoiceNumber: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [optimistic, setOptimistic] = useState<Invoice["type"]>(type);
+
+  useEffect(() => { setOptimistic(type); }, [type]);
+
+  function toggle() {
+    const next: Invoice["type"] = optimistic === "reimbursement" ? "invoice" : "reimbursement";
+    setOptimistic(next);
+    startTransition(async () => {
+      const r = await setInvoiceType(invoiceId, next);
+      if ("error" in r && r.error) {
+        setOptimistic(type);
+        toast.error(r.error);
+      } else {
+        toast.success(`${invoiceNumber} → ${TYPE_META[next].label}`);
+      }
+    });
+  }
+
+  const m = TYPE_META[optimistic];
+  const Icon = m.Icon;
+  const other = optimistic === "reimbursement" ? "Income" : "Recoupment";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={pending}
+      title={`${m.label} — click to mark as ${other}`}
+      aria-label={`Type: ${m.label}. Click to mark as ${other}.`}
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 6,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: m.bg,
+        color: m.fg,
+        border: `1px solid ${m.border}`,
+        cursor: pending ? "wait" : "pointer",
+        opacity: pending ? 0.6 : 1,
+        flex: "none",
+      }}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
   );
 }
 
