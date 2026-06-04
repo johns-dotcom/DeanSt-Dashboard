@@ -141,10 +141,12 @@ function northMarkerSvg({ bg, panel, ink }: { bg: string | null; panel: string; 
 </svg>`;
 }
 
-// Strip explicit width/height attributes so the injected SVG flexes to
-// fill its container while keeping its aspect ratio via viewBox.
+// Force the injected SVG to 100%×100% of its container. With the default
+// preserveAspectRatio="xMidYMid meet", the mark scales to *fit inside* the
+// box (centered, letterboxed) rather than overflowing it — tall marks like
+// the stacked wordmark no longer spill past the preview into the meta below.
 function flexSvg(svg: string) {
-  return svg.replace(/\swidth="[^"]*"/, "").replace(/\sheight="[^"]*"/, "");
+  return svg.replace(/\swidth="[^"]*"/, ' width="100%"').replace(/\sheight="[^"]*"/, ' height="100%"');
 }
 
 /* ─────────────── Variant catalog ─────────────── */
@@ -694,6 +696,7 @@ function LogoCard({ variant }: { variant: Variant }) {
           justifyContent: "center",
           padding: "18px 22px",
           borderBottom: "1px solid var(--hair)",
+          overflow: "hidden",
           ...(variant.transparent ? CHECKER_BG : { background: variant.previewBg }),
         }}
       >
