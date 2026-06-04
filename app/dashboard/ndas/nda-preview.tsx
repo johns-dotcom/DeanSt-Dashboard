@@ -60,13 +60,13 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
         <b>II. PROTECTION OF CONFIDENTIAL INFORMATION.</b> The Recipient agrees to hold the Confidential Information in confidence, not copy or modify it without consent, promptly advise the Owner of any unauthorized disclosure, and restrict access among the Recipient&apos;s employees to those who need to know.
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        <b>III. INJUNCTION · IV. NON-CIRCUMVENTION · V. RETURN OF INFORMATION · VI. RELATIONSHIP OF PARTIES · VII. NO WARRANTY · VIII. LIMITED LICENSE.</b> Standard protections, one-year non-circumvention, return of materials on request, no agency/partnership created, AS-IS Confidential Information, no IP transferred.
+        <b>III. INJUNCTION · IV. RETURN OF INFORMATION · V. RELATIONSHIP OF PARTIES · VI. NO WARRANTY · VII. LIMITED LICENSE.</b> Standard protections, return of materials on request, no agency/partnership created, AS-IS Confidential Information, no IP transferred.
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        <b>IX. INDEMNITY · X. ATTORNEY&apos;S FEES · XI. TERM (2 years + 2 years tail) · XII. GENERAL PROVISIONS (governed by California law) · XIII. WHISTLEBLOWER PROTECTION.</b>
+        <b>VIII. INDEMNITY · IX. ATTORNEY&apos;S FEES · X. TERM (2 years + 2 years tail) · XI. GENERAL PROVISIONS (governed by California law) · XII. WHISTLEBLOWER PROTECTION.</b>
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        <b>XIV. SIGNATORIES.</b> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
+        <b>XIII. SIGNATORIES.</b> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
       </p>
       <p style={{ fontSize: 11, color: "#777", marginTop: 8, fontStyle: "italic" }}>
         Preview shows a condensed summary. The downloadable PDF contains the full 5-page agreement.
