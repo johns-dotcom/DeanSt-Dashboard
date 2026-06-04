@@ -6,6 +6,7 @@ import {
   Users,
   Mail,
   Phone,
+  MapPin,
   LayoutGrid,
   Table as TableIcon,
   ChevronDown,
@@ -41,7 +42,7 @@ function initials(name: string) {
 }
 
 type ViewMode = "cards" | "table";
-type SortKey = "name" | "role" | "industry" | "clients" | "email" | "phone";
+type SortKey = "name" | "role" | "industry" | "clients" | "city" | "email" | "phone" | "notes";
 type SortDir = "asc" | "desc";
 type SortOption =
   | "name_asc"
@@ -156,7 +157,7 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
       if (hasEmail && !c.email) return false;
       if (hasPhone && !c.phone) return false;
       if (hasNotes && !c.notes) return false;
-      if (q && !`${c.name} ${c.role ?? ""} ${c.email ?? ""} ${c.industry ?? ""} ${(c.clients ?? []).join(" ")}`.toLowerCase().includes(q)) return false;
+      if (q && !`${c.name} ${c.role ?? ""} ${c.email ?? ""} ${c.industry ?? ""} ${c.city ?? ""} ${(c.clients ?? []).join(" ")}`.toLowerCase().includes(q)) return false;
       return true;
     });
 
@@ -308,6 +309,9 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                   {c.phone ? (
                     <span className="inline-flex items-center gap-1 truncate"><Phone className="h-3 w-3 flex-none" /><span className="truncate">{c.phone}</span></span>
                   ) : null}
+                  {c.city ? (
+                    <span className="inline-flex items-center gap-1 truncate"><MapPin className="h-3 w-3 flex-none" /><span className="truncate">{c.city}</span></span>
+                  ) : null}
                 </div>
               </button>
             ))}
@@ -333,9 +337,11 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                     <SortableTh label="Name" sortKey="name" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={220} />
                     <SortableTh label="Role" sortKey="role" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} />
                     <SortableTh label="Category" sortKey="industry" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={170} />
-                    <SortableTh label="Brands" sortKey="clients" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={200} />
+                    <SortableTh label="Brands" sortKey="clients" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={190} />
+                    <SortableTh label="City" sortKey="city" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={130} />
                     <SortableTh label="Email" sortKey="email" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={220} />
                     <SortableTh label="Phone" sortKey="phone" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={140} />
+                    <SortableTh label="Notes" sortKey="notes" current={tableSortKey} dir={tableSortDir} onClick={toggleTableSort} width={240} />
                   </tr>
                 </thead>
                 <tbody>
@@ -365,9 +371,14 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                           </span>
                         ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                       </Td>
-                      <Td>
+                      <Td title={(c.clients ?? []).join(", ")}>
                         {(c.clients ?? []).length > 0 ? (
                           <span style={{ color: "var(--ink-soft)" }}>{c.clients.join(", ")}</span>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                      <Td title={c.city ?? undefined}>
+                        {c.city ? (
+                          <span style={{ color: "var(--ink-soft)" }}>{c.city}</span>
                         ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                       </Td>
                       <Td>
@@ -384,6 +395,11 @@ export function ContactsClient({ contacts }: { contacts: Contact[] }) {
                       <Td>
                         {c.phone ? (
                           <span style={{ color: "var(--ink-soft)" }}>{c.phone}</span>
+                        ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
+                      </Td>
+                      <Td title={c.notes ?? undefined}>
+                        {c.notes ? (
+                          <span style={{ color: "var(--ink-soft)" }}>{c.notes}</span>
                         ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                       </Td>
                     </tr>
@@ -536,9 +552,10 @@ function SortableTh({
   );
 }
 
-function Td({ children }: { children: React.ReactNode }) {
+function Td({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <td
+      title={title}
       style={{
         padding: "12px 16px", fontSize: 13.5, color: "var(--ink)",
         verticalAlign: "middle", whiteSpace: "nowrap",

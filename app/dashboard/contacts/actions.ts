@@ -14,6 +14,7 @@ const contactSchema = z.object({
   industry: z.string().optional().nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
   clients: z.array(z.string()).default([]),
   notes: z.string().optional().nullable(),
 });
@@ -31,6 +32,7 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
     industry: parsed.data.industry?.trim() || null,
     email: parsed.data.email || null,
     phone: parsed.data.phone || null,
+    city: parsed.data.city || null,
     clients: parsed.data.clients,
     notes: parsed.data.notes || null,
   }).returning({ id: contacts.id });
@@ -62,6 +64,7 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
       industry: parsed.data.industry?.trim() || null,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,
+      city: parsed.data.city || null,
       clients: parsed.data.clients,
       notes: parsed.data.notes || null,
       updatedAt: new Date(),

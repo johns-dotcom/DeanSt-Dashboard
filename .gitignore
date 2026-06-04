@@ -8,3 +8,6 @@ out
 .vercel
 next-env.d.ts
 *.tsbuildinfo
+
+# Local PII review artifact from scripts/contacts-phone-cleanup.mjs
+contacts_phone_cleanup.plan.json

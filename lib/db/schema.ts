@@ -153,6 +153,7 @@ export const contacts = pgTable("contacts", {
   industry: text("industry"),
   email: text("email"),
   phone: text("phone"),
+  city: text("city"),
   clients: text("clients").array().notNull().default(sql`'{}'`),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

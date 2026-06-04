@@ -26,6 +26,7 @@ export function ContactForm({
   const [customIndustry, setCustomIndustry] = useState("");
   const [email, setEmail] = useState(contact?.email ?? "");
   const [phone, setPhone] = useState(contact?.phone ?? "");
+  const [city, setCity] = useState(contact?.city ?? "");
   const [clientsRaw, setClientsRaw] = useState((contact?.clients ?? []).join(", "));
   const [notes, setNotes] = useState(contact?.notes ?? "");
   const [pending, startTransition] = useTransition();
@@ -43,6 +44,7 @@ export function ContactForm({
         industry: finalIndustry,
         email: email.trim() || null,
         phone: phone.trim() || null,
+        city: city.trim() || null,
         clients: clientsRaw.split(",").map((s) => s.trim()).filter(Boolean),
         notes: notes.trim() || null,
       };
@@ -100,6 +102,10 @@ export function ContactForm({
         <div className="space-y-1">
           <Label htmlFor="phone">Phone</Label>
           <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="col-span-2 space-y-1">
+          <Label htmlFor="city">City</Label>
+          <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="New York, London, …" />
         </div>
         <div className="col-span-2 space-y-1">
           <Label htmlFor="cls">Brands / Clients (comma-separated)</Label>
