@@ -182,7 +182,15 @@ export function DocumentsClient({
   function handleNewClient() {
     const name = window.prompt("New client name")?.trim();
     if (!name) return;
-    openClient(name); // persists once a folder/file is added inside it
+    // A client only exists once it has a folder, so create a first folder now
+    // (defaults to "General") — this persists the client so it shows on Home.
+    const first = (window.prompt(`First folder in ${name}`, "General") ?? "").trim() || "General";
+    startTransition(async () => {
+      const r = await createDocumentFolder({ client: name, name: first, parentId: null });
+      if ("error" in r && r.error) { toast.error(r.error); return; }
+      toast.success(`Client “${name}” created`);
+      openClient(name);
+    });
   }
 
   // ─── move ───
