@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { documents } from "@/lib/db/schema";
+import { documents, documentFolders } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { putObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
@@ -15,13 +16,31 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData();
   const file = form.get("file");
-  const client = form.get("client");
-  const category = form.get("category");
-  const subcategory = form.get("subcategory");
+  const clientField = form.get("client");
+  const categoryField = form.get("category");
+  const folderIdField = form.get("folder_id");
 
-  if (!(file instanceof Blob) || typeof client !== "string" || typeof category !== "string") {
-    return NextResponse.json({ error: "Missing file, client, or category" }, { status: 400 });
+  if (!(file instanceof Blob) || typeof clientField !== "string") {
+    return NextResponse.json({ error: "Missing file or client" }, { status: 400 });
   }
+  const category = typeof categoryField === "string" && categoryField.trim() ? categoryField.trim() : "Other";
+
+  // If a folder is given, it's the source of truth for client + subcategory.
+  let client = clientField;
+  let subcategory: string | null = null;
+  let folderId: string | null = null;
+  if (typeof folderIdField === "string" && folderIdField) {
+    const [folder] = await db
+      .select()
+      .from(documentFolders)
+      .where(and(eq(documentFolders.id, folderIdField), eq(documentFolders.workspaceId, session.workspace.id)))
+      .limit(1);
+    if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 400 });
+    folderId = folder.id;
+    client = folder.client;
+    subcategory = folder.name;
+  }
+
   const fileName = file instanceof File ? file.name : "file";
   const contentType = file.type || "application/octet-stream";
 
@@ -37,7 +56,8 @@ export async function POST(req: NextRequest) {
       workspaceId: session.workspace.id,
       client,
       category,
-      subcategory: typeof subcategory === "string" && subcategory.trim() ? subcategory.trim() : null,
+      subcategory,
+      folderId,
       fileName,
       filePath: key,
       fileSize: bytes.length,

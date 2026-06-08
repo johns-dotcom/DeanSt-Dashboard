@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { documents, documentFolders } from "@/lib/db/schema";
@@ -49,45 +49,49 @@ export async function getDownloadUrl(id: string) {
   return { url: `/api/files/document/${id}` };
 }
 
-/* ─────────────── Subfolders per client ─────────────── */
+/* ─────────────── Folder tree ─────────────── */
 
-const folderInput = z.object({
+const createFolderInput = z.object({
   client: z.string().min(1, "Client is required"),
   name: z.string().min(1, "Folder name is required").max(80),
+  parentId: z.string().uuid().nullable().optional(),
 });
 
-export async function createDocumentFolder(input: z.infer<typeof folderInput>) {
-  const parsed = folderInput.safeParse(input);
+export async function createDocumentFolder(input: z.infer<typeof createFolderInput>) {
+  const parsed = createFolderInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const session = await requireSession();
   const name = parsed.data.name.trim();
-  const client = parsed.data.client.trim();
+  let client = parsed.data.client.trim();
+  const parentId = parsed.data.parentId ?? null;
 
-  // Avoid duplicate by name within the same client
-  const [existing] = await db
-    .select({ id: documentFolders.id })
-    .from(documentFolders)
-    .where(
-      and(
-        eq(documentFolders.workspaceId, session.workspace.id),
-        eq(documentFolders.client, client),
-        eq(documentFolders.name, name)
-      )
-    )
-    .limit(1);
-  if (existing) return { error: `"${name}" already exists in ${client}` };
+  if (parentId) {
+    const [parent] = await db
+      .select()
+      .from(documentFolders)
+      .where(and(eq(documentFolders.id, parentId), eq(documentFolders.workspaceId, session.workspace.id)))
+      .limit(1);
+    if (!parent) return { error: "Parent folder not found" };
+    client = parent.client; // children always inherit the parent's client
+  }
 
-  const [{ maxOrder }] = await db
-    .select({ maxOrder: max(documentFolders.sortOrder) })
+  // Dedup + ordering computed in JS so NULL parents compare cleanly.
+  const siblings = await db
+    .select({ name: documentFolders.name, parentId: documentFolders.parentId })
     .from(documentFolders)
     .where(and(eq(documentFolders.workspaceId, session.workspace.id), eq(documentFolders.client, client)));
+  const sameLevel = siblings.filter((s) => (s.parentId ?? null) === parentId);
+  if (sameLevel.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
+    return { error: `"${name}" already exists here` };
+  }
 
   await db.insert(documentFolders).values({
     workspaceId: session.workspace.id,
     client,
     name,
-    sortOrder: (maxOrder ?? 0) + 1,
+    parentId,
+    sortOrder: sameLevel.length + 1,
   });
 
   await logActivity({
@@ -123,23 +127,10 @@ export async function renameDocumentFolder(input: z.infer<typeof renameInput>) {
     .limit(1);
   if (!folder) return { error: "Folder not found" };
 
-  // Update folder
   await db
     .update(documentFolders)
     .set({ name: newName, updatedAt: new Date() })
     .where(eq(documentFolders.id, folder.id));
-
-  // Cascade to documents that were tagged with the old subcategory
-  await db
-    .update(documents)
-    .set({ subcategory: newName, updatedAt: new Date() })
-    .where(
-      and(
-        eq(documents.workspaceId, session.workspace.id),
-        eq(documents.client, folder.client),
-        eq(documents.subcategory, folder.name)
-      )
-    );
 
   await logActivity({
     action: "document.uploaded",
@@ -165,6 +156,19 @@ export async function deleteDocumentFolder(id: string) {
     .limit(1);
   if (!folder) return { error: "Folder not found" };
 
+  // Only delete empty folders — no child folders and no documents.
+  const [{ kids }] = await db
+    .select({ kids: count() })
+    .from(documentFolders)
+    .where(eq(documentFolders.parentId, id));
+  const [{ docs }] = await db
+    .select({ docs: count() })
+    .from(documents)
+    .where(eq(documents.folderId, id));
+  if (kids > 0 || docs > 0) {
+    return { error: "Folder isn't empty — move or delete its contents first." };
+  }
+
   await db.delete(documentFolders).where(eq(documentFolders.id, id));
 
   await logActivity({
@@ -177,6 +181,86 @@ export async function deleteDocumentFolder(id: string) {
     entityId: id,
     entityLabel: `Removed folder · ${folder.client}/${folder.name}`,
   });
+
+  revalidatePath("/dashboard/documents");
+  return { ok: true as const };
+}
+
+const moveDocInput = z.object({
+  id: z.string().uuid(),
+  folderId: z.string().uuid().nullable(),
+});
+
+export async function moveDocument(input: z.infer<typeof moveDocInput>) {
+  const parsed = moveDocInput.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const session = await requireSession();
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, parsed.data.id), eq(documents.workspaceId, session.workspace.id)))
+    .limit(1);
+  if (!doc) return { error: "Document not found" };
+
+  let client = doc.client;
+  let subcategory: string | null = null;
+  if (parsed.data.folderId) {
+    const [target] = await db
+      .select()
+      .from(documentFolders)
+      .where(and(eq(documentFolders.id, parsed.data.folderId), eq(documentFolders.workspaceId, session.workspace.id)))
+      .limit(1);
+    if (!target) return { error: "Target folder not found" };
+    client = target.client;
+    subcategory = target.name;
+  }
+
+  await db
+    .update(documents)
+    .set({ folderId: parsed.data.folderId, client, subcategory, updatedAt: new Date() })
+    .where(eq(documents.id, doc.id));
+
+  revalidatePath("/dashboard/documents");
+  return { ok: true as const };
+}
+
+const moveFolderInput = z.object({
+  id: z.string().uuid(),
+  parentId: z.string().uuid().nullable(),
+});
+
+export async function moveFolder(input: z.infer<typeof moveFolderInput>) {
+  const parsed = moveFolderInput.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const session = await requireSession();
+  const all = await db
+    .select()
+    .from(documentFolders)
+    .where(eq(documentFolders.workspaceId, session.workspace.id));
+
+  const folder = all.find((f) => f.id === parsed.data.id);
+  if (!folder) return { error: "Folder not found" };
+  const parentId = parsed.data.parentId ?? null;
+  if (parentId === folder.id) return { error: "Can't move a folder into itself" };
+
+  if (parentId) {
+    const target = all.find((f) => f.id === parentId);
+    if (!target) return { error: "Target folder not found" };
+    if (target.client !== folder.client) return { error: "Can't move a folder to a different client" };
+    // Cycle guard: target must not be a descendant of the folder being moved.
+    let cur: typeof target | undefined = target;
+    while (cur) {
+      if (cur.id === folder.id) return { error: "Can't move a folder into its own subfolder" };
+      cur = cur.parentId ? all.find((f) => f.id === cur!.parentId) : undefined;
+    }
+  }
+
+  await db
+    .update(documentFolders)
+    .set({ parentId, updatedAt: new Date() })
+    .where(and(eq(documentFolders.id, folder.id), eq(documentFolders.workspaceId, session.workspace.id)));
 
   revalidatePath("/dashboard/documents");
   return { ok: true as const };

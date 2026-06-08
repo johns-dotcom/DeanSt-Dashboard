@@ -1,10 +1,20 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Folder, FolderOpen, FileText, Upload, Trash2, Download, ChevronRight, Plus, Pencil } from "lucide-react";
+import {
+  Folder,
+  FileText,
+  Upload,
+  Trash2,
+  Download,
+  ChevronRight,
+  Pencil,
+  FolderPlus,
+  FolderInput,
+  Home,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { FilterPills } from "@/components/dashboard/filter-pills";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
 import { UploadForm } from "./upload-form";
@@ -14,6 +24,8 @@ import {
   createDocumentFolder,
   renameDocumentFolder,
   deleteDocumentFolder,
+  moveDocument,
+  moveFolder,
 } from "./actions";
 import { cn, formatDate } from "@/lib/utils";
 import type { Document as Doc, DocumentFolder } from "@/lib/db/schema";
@@ -33,6 +45,10 @@ function folderColor(seed: string) {
   return FOLDER_COLORS[Math.abs(hash) % FOLDER_COLORS.length];
 }
 
+type MoveTarget =
+  | { kind: "doc"; id: string; name: string; client: string }
+  | { kind: "folder"; id: string; name: string; client: string };
+
 export function DocumentsClient({
   documents,
   folders,
@@ -42,58 +58,87 @@ export function DocumentsClient({
   folders: DocumentFolder[];
   workspaceId: string;
 }) {
-  const [filter, setFilter] = useState<string>("all");
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Navigation: null client = Home (client list); folderId null = client root.
+  const [currentClient, setCurrentClient] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadDefaults, setUploadDefaults] = useState<{ client?: string; subcategory?: string }>({});
+  const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const foldersById = useMemo(() => {
+    const m = new Map<string, DocumentFolder>();
+    for (const f of folders) m.set(f.id, f);
+    return m;
+  }, [folders]);
 
   const clients = useMemo(() => {
     const set = new Set<string>();
     documents.forEach((d) => set.add(d.client));
     folders.forEach((f) => set.add(f.client));
-    return Array.from(set).sort();
-  }, [documents, folders]);
+    // Keep the client we just drilled into visible even before it has content.
+    if (currentClient) set.add(currentClient);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [documents, folders, currentClient]);
 
-  const groupedByClient = useMemo(() => {
-    const filtered = filter === "all" ? documents : documents.filter((d) => d.client === filter);
-    const map = new Map<string, Doc[]>();
-    for (const d of filtered) {
-      const arr = map.get(d.client) ?? [];
-      arr.push(d);
-      map.set(d.client, arr);
-    }
-    // Ensure clients that have folders but no documents still show up
-    const allowed = filter === "all" ? new Set(clients) : new Set([filter]);
-    for (const c of clients) {
-      if (!map.has(c) && allowed.has(c) && folders.some((f) => f.client === c)) {
-        map.set(c, []);
-      }
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [documents, folders, filter, clients]);
-
-  const foldersByClient = useMemo(() => {
-    const map = new Map<string, DocumentFolder[]>();
-    for (const f of folders) {
-      const arr = map.get(f.client) ?? [];
-      arr.push(f);
-      map.set(f.client, arr);
-    }
-    return map;
-  }, [folders]);
-
-  function toggle(client: string) {
-    setOpen((p) => ({ ...p, [client]: !p[client] }));
+  function childFolders(client: string, parentId: string | null) {
+    return folders
+      .filter((f) => f.client === client && (f.parentId ?? null) === parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }
 
+  function docsIn(client: string, folderId: string | null) {
+    return documents
+      .filter((d) => d.client === client && (d.folderId ?? null) === folderId)
+      .sort((a, b) => a.fileName.localeCompare(b.fileName));
+  }
+
+  function ancestry(folderId: string): DocumentFolder[] {
+    const chain: DocumentFolder[] = [];
+    let cur = foldersById.get(folderId);
+    while (cur) {
+      chain.unshift(cur);
+      cur = cur.parentId ? foldersById.get(cur.parentId) : undefined;
+    }
+    return chain;
+  }
+
+  function descendantIds(folderId: string): Set<string> {
+    const out = new Set<string>();
+    const walk = (id: string) => {
+      for (const f of folders) {
+        if (f.parentId === id && !out.has(f.id)) {
+          out.add(f.id);
+          walk(f.id);
+        }
+      }
+    };
+    walk(folderId);
+    return out;
+  }
+
+  function pathLabel(folderId: string): string {
+    return ancestry(folderId).map((f) => f.name).join(" / ");
+  }
+
+  function folderItemCount(folder: DocumentFolder): number {
+    return (
+      childFolders(folder.client, folder.id).length + docsIn(folder.client, folder.id).length
+    );
+  }
+
+  // ─── navigation ───
+  const goHome = () => { setCurrentClient(null); setCurrentFolderId(null); };
+  const openClient = (c: string) => { setCurrentClient(c); setCurrentFolderId(null); };
+  const openFolder = (id: string) => setCurrentFolderId(id);
+  const goToFolder = (id: string | null) => setCurrentFolderId(id);
+
+  // ─── document ops ───
   async function handleDownload(doc: Doc) {
     const r = await getDownloadUrl(doc.id);
     if ("error" in r) { toast.error(r.error); return; }
     window.open(r.url, "_blank");
   }
-
-  function handleDelete(doc: Doc) {
+  function handleDeleteDoc(doc: Doc) {
     if (!confirm(`Delete ${doc.fileName}?`)) return;
     startTransition(async () => {
       const r = await deleteDocument(doc.id);
@@ -101,208 +146,366 @@ export function DocumentsClient({
     });
   }
 
-  function handleAddFolder(client: string) {
-    const name = window.prompt(`Add a subfolder in ${client}`)?.trim();
+  // ─── folder ops ───
+  function handleNewFolder() {
+    if (!currentClient) return;
+    const name = window.prompt(
+      currentFolderId
+        ? `New subfolder in “${pathLabel(currentFolderId)}”`
+        : `New folder in ${currentClient}`
+    )?.trim();
     if (!name) return;
     startTransition(async () => {
-      const r = await createDocumentFolder({ client, name });
-      if ("error" in r && r.error) toast.error(r.error);
-      else toast.success(`Added "${name}"`);
+      const r = await createDocumentFolder({ client: currentClient, name, parentId: currentFolderId });
+      if ("error" in r && r.error) toast.error(r.error); else toast.success(`Created “${name}”`);
     });
   }
-
-  function handleRenameFolder(folder: DocumentFolder, hasDocs: boolean) {
-    const next = window.prompt(`Rename "${folder.name}"`, folder.name)?.trim();
+  function handleRenameFolder(folder: DocumentFolder) {
+    const next = window.prompt(`Rename “${folder.name}”`, folder.name)?.trim();
     if (!next || next === folder.name) return;
-    if (hasDocs && !confirm(`Renaming will retag ${hasDocs ? "all" : ""} documents in this folder. Continue?`)) return;
     startTransition(async () => {
       const r = await renameDocumentFolder({ id: folder.id, name: next });
-      if ("error" in r && r.error) toast.error(r.error);
-      else toast.success("Folder renamed");
+      if ("error" in r && r.error) toast.error(r.error); else toast.success("Folder renamed");
     });
   }
-
-  function handleDeleteFolder(folder: DocumentFolder, docCount: number) {
-    if (docCount > 0) {
-      toast.error(`Move or delete the ${docCount} file${docCount === 1 ? "" : "s"} in "${folder.name}" first.`);
+  function handleDeleteFolder(folder: DocumentFolder) {
+    if (folderItemCount(folder) > 0) {
+      toast.error(`“${folder.name}” isn't empty — move or delete its contents first.`);
       return;
     }
-    if (!confirm(`Delete subfolder "${folder.name}"?`)) return;
+    if (!confirm(`Delete folder “${folder.name}”?`)) return;
     startTransition(async () => {
       const r = await deleteDocumentFolder(folder.id);
+      if ("error" in r && r.error) toast.error(r.error); else toast.success("Folder deleted");
+    });
+  }
+  function handleNewClient() {
+    const name = window.prompt("New client name")?.trim();
+    if (!name) return;
+    openClient(name); // persists once a folder/file is added inside it
+  }
+
+  // ─── move ───
+  function submitMove(destFolderId: string | null) {
+    if (!moveTarget) return;
+    startTransition(async () => {
+      const r =
+        moveTarget.kind === "doc"
+          ? await moveDocument({ id: moveTarget.id, folderId: destFolderId })
+          : await moveFolder({ id: moveTarget.id, parentId: destFolderId });
       if ("error" in r && r.error) toast.error(r.error);
-      else toast.success("Subfolder deleted");
+      else { toast.success("Moved"); setMoveTarget(null); }
     });
   }
 
-  function openUpload(client?: string, subcategory?: string) {
-    setUploadDefaults({ client, subcategory });
-    setUploadOpen(true);
-  }
+  const breadcrumb = currentFolderId ? ancestry(currentFolderId) : [];
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <FilterPills
-          value={filter}
-          options={[
-            { value: "all", label: "All clients", count: documents.length },
-            ...clients.map((c) => ({ value: c, label: c, count: documents.filter((d) => d.client === c).length })),
-          ]}
-          onChange={setFilter}
-        />
-        <SlideOver open={uploadOpen} onOpenChange={(v) => { setUploadOpen(v); if (!v) setUploadDefaults({}); }}>
-          <Button onClick={() => openUpload()}><Upload className="h-4 w-4" /> Upload file</Button>
-          <SlideOverContent title="Upload file" description="Add a document to a client folder.">
-            <UploadForm
-              workspaceId={workspaceId}
-              clients={clients}
-              folders={folders}
-              defaultClient={uploadDefaults.client}
-              defaultSubcategory={uploadDefaults.subcategory}
-              onDone={() => { setUploadOpen(false); setUploadDefaults({}); }}
-            />
-          </SlideOverContent>
-        </SlideOver>
+      {/* Breadcrumb + toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav className="flex flex-wrap items-center gap-1 text-sm">
+          <button
+            onClick={goHome}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded px-2 py-1 transition-colors hover:bg-hover",
+              currentClient === null ? "font-medium text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <Home className="h-3.5 w-3.5" /> Documents
+          </button>
+          {currentClient ? (
+            <>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <button
+                onClick={() => goToFolder(null)}
+                className={cn(
+                  "rounded px-2 py-1 transition-colors hover:bg-hover",
+                  currentFolderId === null ? "font-medium text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {currentClient}
+              </button>
+            </>
+          ) : null}
+          {breadcrumb.map((f, i) => (
+            <span key={f.id} className="flex items-center gap-1">
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <button
+                onClick={() => goToFolder(f.id)}
+                className={cn(
+                  "rounded px-2 py-1 transition-colors hover:bg-hover",
+                  i === breadcrumb.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {f.name}
+              </button>
+            </span>
+          ))}
+        </nav>
+
+        {currentClient ? (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={handleNewFolder} disabled={pending}>
+              <FolderPlus className="h-4 w-4" /> New folder
+            </Button>
+            <Button onClick={() => setUploadOpen(true)}>
+              <Upload className="h-4 w-4" /> Upload here
+            </Button>
+          </div>
+        ) : (
+          <Button variant="ghost" onClick={handleNewClient}>
+            <FolderPlus className="h-4 w-4" /> New client
+          </Button>
+        )}
       </div>
 
-      {groupedByClient.length === 0 ? (
-        <EmptyState
-          icon={<Folder className="h-4 w-4" />}
-          title="No documents yet"
-          description="Upload contracts, press kits, and more."
-          action={<Button onClick={() => openUpload()}><Upload className="h-4 w-4" /> Upload file</Button>}
-        />
+      {currentClient === null ? (
+        // ─── Home: client list ───
+        clients.length === 0 ? (
+          <EmptyState
+            icon={<Folder className="h-4 w-4" />}
+            title="No documents yet"
+            description="Create a client to start organizing files into folders."
+            action={<Button onClick={handleNewClient}><FolderPlus className="h-4 w-4" /> New client</Button>}
+          />
+        ) : (
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+            {clients.map((c) => {
+              const count = childFolders(c, null).length + docsIn(c, null).length;
+              return (
+                <button
+                  key={c}
+                  onClick={() => openClient(c)}
+                  className="group flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 text-left transition-colors hover:bg-hover"
+                >
+                  <Folder className={cn("h-5 w-5 flex-none", folderColor(c))} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{c}</span>
+                    <span className="text-xs text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 flex-none text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                </button>
+              );
+            })}
+          </div>
+        )
       ) : (
-        <div className="space-y-3">
-          {groupedByClient.map(([client, items]) => {
-            const isOpen = open[client] ?? true;
-            const clientFolders = foldersByClient.get(client) ?? [];
+        // ─── Inside a client / folder ───
+        <FolderView
+          folders={childFolders(currentClient, currentFolderId)}
+          files={docsIn(currentClient, currentFolderId)}
+          itemCount={folderItemCount}
+          onOpenFolder={openFolder}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onMoveFolder={(f) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, client: f.client })}
+          onDownload={handleDownload}
+          onDeleteDoc={handleDeleteDoc}
+          onMoveDoc={(d) => setMoveTarget({ kind: "doc", id: d.id, name: d.fileName, client: d.client })}
+          onUpload={() => setUploadOpen(true)}
+          pending={pending}
+        />
+      )}
 
-            // Build subcat map: each user-defined folder gets a bucket (even if empty),
-            // plus any subcategory/category found on existing docs.
-            const subcats = new Map<string, Doc[]>();
-            const folderIdByName = new Map<string, DocumentFolder>();
-            for (const f of clientFolders) {
-              subcats.set(f.name, []);
-              folderIdByName.set(f.name, f);
-            }
-            for (const d of items) {
-              const k = d.subcategory || d.category;
-              const arr = subcats.get(k) ?? [];
-              arr.push(d);
-              subcats.set(k, arr);
-            }
+      {/* Upload slide-over — uploads into the current location */}
+      <SlideOver open={uploadOpen} onOpenChange={setUploadOpen}>
+        <SlideOverContent
+          title="Upload file"
+          description={
+            currentClient
+              ? `Uploading to ${currentClient}${currentFolderId ? " / " + pathLabel(currentFolderId) : ""}`
+              : "Add a document"
+          }
+        >
+          {currentClient ? (
+            <UploadForm
+              workspaceId={workspaceId}
+              client={currentClient}
+              folderId={currentFolderId}
+              destinationLabel={currentFolderId ? `${currentClient} / ${pathLabel(currentFolderId)}` : currentClient}
+              onDone={() => setUploadOpen(false)}
+            />
+          ) : null}
+        </SlideOverContent>
+      </SlideOver>
 
+      {/* Move picker */}
+      <SlideOver open={Boolean(moveTarget)} onOpenChange={(v) => { if (!v) setMoveTarget(null); }}>
+        <SlideOverContent title="Move" description={moveTarget ? `Choose a destination for “${moveTarget.name}”.` : ""}>
+          {moveTarget ? (
+            <MovePicker
+              target={moveTarget}
+              folders={folders.filter((f) => f.client === moveTarget.client)}
+              pathLabel={pathLabel}
+              excludeIds={moveTarget.kind === "folder" ? new Set([moveTarget.id, ...descendantIds(moveTarget.id)]) : new Set()}
+              onPick={submitMove}
+              pending={pending}
+            />
+          ) : null}
+        </SlideOverContent>
+      </SlideOver>
+    </div>
+  );
+}
+
+function FolderView({
+  folders,
+  files,
+  itemCount,
+  onOpenFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onMoveFolder,
+  onDownload,
+  onDeleteDoc,
+  onMoveDoc,
+  onUpload,
+  pending,
+}: {
+  folders: DocumentFolder[];
+  files: Doc[];
+  itemCount: (f: DocumentFolder) => number;
+  onOpenFolder: (id: string) => void;
+  onRenameFolder: (f: DocumentFolder) => void;
+  onDeleteFolder: (f: DocumentFolder) => void;
+  onMoveFolder: (f: DocumentFolder) => void;
+  onDownload: (d: Doc) => void;
+  onDeleteDoc: (d: Doc) => void;
+  onMoveDoc: (d: Doc) => void;
+  onUpload: () => void;
+  pending: boolean;
+}) {
+  if (folders.length === 0 && files.length === 0) {
+    return (
+      <EmptyState
+        icon={<Folder className="h-4 w-4" />}
+        title="This folder is empty"
+        description="Create a subfolder or upload a file here."
+        action={<Button onClick={onUpload}><Upload className="h-4 w-4" /> Upload here</Button>}
+      />
+    );
+  }
+  return (
+    <div className="space-y-5">
+      {folders.length > 0 ? (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+          {folders.map((f) => {
+            const count = itemCount(f);
             return (
-              <section key={client} className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
-                <div className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-hover">
-                  <button
-                    onClick={() => toggle(client)}
-                    className="flex flex-1 items-center gap-2.5 text-left"
-                  >
-                    {isOpen ? (
-                      <FolderOpen className={cn("h-4 w-4", folderColor(client))} />
-                    ) : (
-                      <Folder className={cn("h-4 w-4", folderColor(client))} />
-                    )}
-                    <span className="text-sm font-medium">{client}</span>
-                    <span className="text-xs text-muted-foreground">{items.length}</span>
-                    <ChevronRight className={cn("h-4 w-4 ml-1 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
-                  </button>
-                  <button
-                    onClick={() => handleAddFolder(client)}
-                    disabled={pending}
-                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Subfolder
-                  </button>
+              <div
+                key={f.id}
+                className="group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover"
+              >
+                <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <Folder className={cn("h-5 w-5 flex-none", folderColor(f.id))} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{f.name}</span>
+                    <span className="text-xs text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
+                  </span>
+                </button>
+                <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                  <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
+                  <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
                 </div>
-
-                {isOpen ? (
-                  <div className="border-t-hairline border-border">
-                    {Array.from(subcats.entries())
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([sub, files]) => {
-                        const folder = folderIdByName.get(sub);
-                        return (
-                          <div key={sub} className="px-4 py-2">
-                            <div className="group flex items-center justify-between">
-                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{sub}</div>
-                              <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                <button
-                                  onClick={() => openUpload(client, sub)}
-                                  className="rounded p-1 text-muted-foreground hover:bg-surface hover:text-foreground"
-                                  aria-label="Upload to this subfolder"
-                                  title="Upload to this subfolder"
-                                >
-                                  <Upload className="h-3.5 w-3.5" />
-                                </button>
-                                {folder ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleRenameFolder(folder, files.length > 0)}
-                                      disabled={pending}
-                                      className="rounded p-1 text-muted-foreground hover:bg-surface hover:text-foreground disabled:opacity-50"
-                                      aria-label="Rename subfolder"
-                                      title="Rename"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteFolder(folder, files.length)}
-                                      disabled={pending}
-                                      className="rounded p-1 text-muted-foreground hover:bg-surface hover:text-foreground disabled:opacity-50"
-                                      aria-label="Delete subfolder"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-                            {files.length === 0 ? (
-                              <div className="mt-1.5 rounded-md px-2 py-2 text-xs italic text-muted-foreground">
-                                Empty — upload a file to get started.
-                              </div>
-                            ) : (
-                              <ul className="mt-1.5">
-                                {files.map((doc) => (
-                                  <li key={doc.id} className="group flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-hover">
-                                    <span className="flex min-w-0 items-center gap-2 text-sm">
-                                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                      <span className="truncate">{doc.fileName}</span>
-                                    </span>
-                                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <span className="hidden sm:inline">{formatDate(doc.uploadedAt)}</span>
-                                      <button onClick={() => handleDownload(doc)} className="rounded p-1 hover:bg-surface hover:text-foreground" aria-label="Download">
-                                        <Download className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button onClick={() => handleDelete(doc)} className="rounded p-1 hover:bg-surface hover:text-foreground" aria-label="Delete">
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })}
-                    {subcats.size === 0 ? (
-                      <div className="px-4 py-3 text-xs italic text-muted-foreground">
-                        No subfolders yet — add one above.
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </section>
+              </div>
             );
           })}
         </div>
-      )}
+      ) : null}
+
+      {files.length > 0 ? (
+        <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
+          <ul>
+            {files.map((doc) => (
+              <li key={doc.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
+                <span className="flex min-w-0 items-center gap-2.5 text-sm">
+                  <FileText className="h-4 w-4 flex-none text-muted-foreground" />
+                  <span className="truncate">{doc.fileName}</span>
+                </span>
+                <span className="flex flex-none items-center gap-2 text-xs text-muted-foreground">
+                  <span className="hidden sm:inline">{formatDate(doc.uploadedAt)}</span>
+                  <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                  <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
+                  <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IconBtn({
+  children,
+  label,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="rounded p-1 text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MovePicker({
+  target,
+  folders,
+  pathLabel,
+  excludeIds,
+  onPick,
+  pending,
+}: {
+  target: MoveTarget;
+  folders: DocumentFolder[];
+  pathLabel: (id: string) => string;
+  excludeIds: Set<string>;
+  onPick: (destFolderId: string | null) => void;
+  pending: boolean;
+}) {
+  const destinations = folders
+    .filter((f) => !excludeIds.has(f.id))
+    .map((f) => ({ id: f.id, label: pathLabel(f.id) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => onPick(null)}
+        disabled={pending}
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-hover disabled:opacity-50"
+      >
+        <Home className="h-4 w-4 text-muted-foreground" /> {target.client} (root)
+      </button>
+      {destinations.map((d) => (
+        <button
+          key={d.id}
+          onClick={() => onPick(d.id)}
+          disabled={pending}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-hover disabled:opacity-50"
+        >
+          <Folder className="h-4 w-4 flex-none text-muted-foreground" />
+          <span className="truncate">{d.label}</span>
+        </button>
+      ))}
+      {destinations.length === 0 ? (
+        <p className="px-3 py-2 text-xs italic text-muted-foreground">No other folders in {target.client} yet.</p>
+      ) : null}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   jsonb,
   primaryKey,
   pgEnum,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -181,6 +182,7 @@ export const documents = pgTable("documents", {
   client: text("client").notNull(),
   category: text("category").notNull(),
   subcategory: text("subcategory"),
+  folderId: uuid("folder_id").references((): AnyPgColumn => documentFolders.id, { onDelete: "set null" }),
   fileName: text("file_name").notNull(),
   filePath: text("file_path").notNull(),
   fileSize: integer("file_size").notNull().default(0),
@@ -195,6 +197,9 @@ export const documentFolders = pgTable("document_folders", {
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   client: text("client").notNull(),
   name: text("name").notNull(),
+  // Self-referential parent for arbitrary nesting. NULL = top-level folder
+  // within a client.
+  parentId: uuid("parent_id").references((): AnyPgColumn => documentFolders.id, { onDelete: "cascade" }),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

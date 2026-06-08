@@ -43,6 +43,13 @@
       "when": 1779417600000,
       "tag": "0005_nda_editable_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779504000000,
+      "tag": "0006_document_folder_tree",
+      "breakpoints": true
     }
   ]
 }
