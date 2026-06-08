@@ -7,7 +7,7 @@ import { getObject } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await requireSession();
 
   const [doc] = await db
@@ -17,12 +17,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .limit(1);
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // ?inline=1 → render in the browser (PDFs, images); otherwise force download.
+  const inline = req.nextUrl.searchParams.get("inline");
+  const disposition = inline ? "inline" : "attachment";
+
   try {
     const { body, contentType } = await getObject(doc.filePath);
     return new NextResponse(new Uint8Array(body), {
       headers: {
         "content-type": contentType || "application/octet-stream",
-        "content-disposition": `attachment; filename="${doc.fileName.replace(/"/g, "")}"`,
+        "content-disposition": `${disposition}; filename="${doc.fileName.replace(/"/g, "")}"`,
         "cache-control": "no-store",
       },
     });
