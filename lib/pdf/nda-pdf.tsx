@@ -1,5 +1,11 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Nda } from "@/lib/db/schema";
+import {
+  DEFAULT_PURPOSE,
+  DEFAULT_GOVERNING_LAW,
+  DEFAULT_TERM_YEARS,
+  DEFAULT_SURVIVAL_YEARS,
+} from "@/lib/nda-defaults";
 
 const styles = StyleSheet.create({
   page: { padding: 64, fontSize: 11, fontFamily: "Times-Roman", color: "#1a1a1a", lineHeight: 1.5 },
@@ -34,6 +40,12 @@ export function NdaPDF({ nda }: { nda: Nda }) {
   const disclosingTo = blank(nda.disclosingToName || nda.ownerSignatoryName);
   const signatoryName = blank(nda.ownerSignatoryName);
   const signatoryPosition = blank(nda.ownerSignatoryPosition);
+  const purpose = nda.purpose?.trim() || DEFAULT_PURPOSE;
+  const termYears = nda.termYears || DEFAULT_TERM_YEARS;
+  const survivalYears = nda.survivalYears || DEFAULT_SURVIVAL_YEARS;
+  const governingLaw = nda.governingLaw?.trim() || DEFAULT_GOVERNING_LAW;
+  const extra = nda.additionalClauses?.trim();
+  const sigNum = extra ? "XIV" : "XIII";
 
   return (
     <Document>
@@ -44,7 +56,7 @@ export function NdaPDF({ nda }: { nda: Nda }) {
           This Non-disclosure Agreement (this &quot;<Text style={styles.bold}>Agreement</Text>&quot;) is made effective as of {effectiveDate} (the &quot;Effective Date&quot;), by and between {ownerName} (the &quot;<Text style={styles.bold}>Owner</Text>&quot;), of {ownerAddress} and {recipientName} (the &quot;<Text style={styles.bold}>Recipient</Text>&quot;), located at {recipientAddress}.
         </Text>
         <Text style={styles.paragraph}>
-          Information will be disclosed to {disclosingTo} to determine whether <Text style={styles.bold}>{recipientName}</Text> could assist <Text style={styles.bold}>{ownerName}</Text> with the development of artists, marketing plans, business development and overall company strategy.
+          Information will be disclosed to {disclosingTo} to determine whether <Text style={styles.bold}>{recipientName}</Text> could assist <Text style={styles.bold}>{ownerName}</Text> with {purpose}.
         </Text>
         <Text style={styles.paragraph}>
           The Owner has requested and the Recipient agrees that the Recipient will protect the confidential material and information which may be disclosed between the Owner and the Recipient. Therefore, the parties agree as follows:
@@ -111,20 +123,25 @@ export function NdaPDF({ nda }: { nda: Nda }) {
           <Text style={styles.bold}>IX. ATTORNEY&apos;S FEES.</Text> In any legal action between the parties concerning this Agreement, the prevailing party shall be entitled to recover reasonable attorney&apos;s fees and costs.
         </Text>
         <Text style={styles.paragraph}>
-          <Text style={styles.bold}>X. TERM.</Text> The obligations of this Agreement shall survive 2 Years from the Effective Date or until the Owner sends the Recipient written notice releasing the Recipient from this Agreement. After that, the Recipient must continue to protect the Confidential Information that was received during the term of this Agreement from unauthorized use or disclosure for an additional 2 years.
+          <Text style={styles.bold}>X. TERM.</Text> The obligations of this Agreement shall survive {termYears} {termYears === 1 ? "Year" : "Years"} from the Effective Date or until the Owner sends the Recipient written notice releasing the Recipient from this Agreement. After that, the Recipient must continue to protect the Confidential Information that was received during the term of this Agreement from unauthorized use or disclosure for an additional {survivalYears} {survivalYears === 1 ? "year" : "years"}.
         </Text>
         <Text style={styles.paragraph}>
-          <Text style={styles.bold}>XI. GENERAL PROVISIONS.</Text> This Agreement sets forth the entire understanding of the parties regarding confidentiality. Any amendments must be in writing and signed by both parties. This Agreement shall be construed under the laws of the State of California. This Agreement shall not be assignable by either party. Neither party may delegate its duties under this Agreement without the prior written consent of the other party. The confidentiality provisions of this Agreement shall remain in full force and effect at all times in accordance with the term of this Agreement. If any provision of this Agreement is held to be invalid, illegal or unenforceable, the remaining portions of this Agreement shall remain in full force and effect and construed so as to best effectuate the original intent and purpose of this Agreement.
+          <Text style={styles.bold}>XI. GENERAL PROVISIONS.</Text> This Agreement sets forth the entire understanding of the parties regarding confidentiality. Any amendments must be in writing and signed by both parties. This Agreement shall be construed under the laws of the State of {governingLaw}. This Agreement shall not be assignable by either party. Neither party may delegate its duties under this Agreement without the prior written consent of the other party. The confidentiality provisions of this Agreement shall remain in full force and effect at all times in accordance with the term of this Agreement. If any provision of this Agreement is held to be invalid, illegal or unenforceable, the remaining portions of this Agreement shall remain in full force and effect and construed so as to best effectuate the original intent and purpose of this Agreement.
         </Text>
         <Text style={styles.paragraph}>
           <Text style={styles.bold}>XII. WHISTLEBLOWER PROTECTION.</Text> This Agreement is in compliance with the Defend Trade Secrets Act and provides civil or criminal immunity to any individual for the disclosure of trade secrets: (i) made in confidence to a federal, state, or local government official, or to an attorney when the disclosure is to report suspected violations of the law; or (ii) in a complaint or other document filed in a lawsuit if made under seal.
         </Text>
       </Page>
 
-      {/* Page 5 - Signatures */}
+      {/* Page 5 - Optional additional terms + Signatures */}
       <Page size="A4" style={styles.page}>
+        {extra ? (
+          <Text style={styles.paragraph}>
+            <Text style={styles.bold}>XIII. ADDITIONAL TERMS.</Text> {extra}
+          </Text>
+        ) : null}
         <Text style={styles.paragraph}>
-          <Text style={styles.bold}>XIII. SIGNATORIES.</Text> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
+          <Text style={styles.bold}>{sigNum}. SIGNATORIES.</Text> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
         </Text>
         <View style={styles.signatureBlock}>
           <Text style={styles.bold}>OWNER:</Text>

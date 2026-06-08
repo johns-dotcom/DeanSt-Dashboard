@@ -15,6 +15,12 @@ import { NdaPreviewPanel, type NdaDraft } from "./nda-preview";
 import { NdaFilesPanel } from "./nda-files-panel";
 import { createNda, updateNda, deleteNda, setNdaSigned } from "./actions";
 import { formatDate } from "@/lib/utils";
+import {
+  DEFAULT_PURPOSE,
+  DEFAULT_GOVERNING_LAW,
+  DEFAULT_TERM_YEARS,
+  DEFAULT_SURVIVAL_YEARS,
+} from "@/lib/nda-defaults";
 import type { Nda } from "@/lib/db/schema";
 
 const emptyDraft = (defaults?: { name?: string; signatoryName?: string; signatoryPosition?: string }): NdaDraft => ({
@@ -26,6 +32,11 @@ const emptyDraft = (defaults?: { name?: string; signatoryName?: string; signator
   ownerSignatoryName: defaults?.signatoryName ?? "",
   ownerSignatoryPosition: defaults?.signatoryPosition ?? "",
   disclosingToName: "",
+  purpose: DEFAULT_PURPOSE,
+  termYears: DEFAULT_TERM_YEARS,
+  survivalYears: DEFAULT_SURVIVAL_YEARS,
+  governingLaw: DEFAULT_GOVERNING_LAW,
+  additionalClauses: "",
 });
 
 function toDraft(nda: Nda): NdaDraft {
@@ -38,7 +49,18 @@ function toDraft(nda: Nda): NdaDraft {
     ownerSignatoryName: nda.ownerSignatoryName ?? "",
     ownerSignatoryPosition: nda.ownerSignatoryPosition ?? "",
     disclosingToName: nda.disclosingToName ?? "",
+    purpose: nda.purpose ?? DEFAULT_PURPOSE,
+    termYears: nda.termYears ?? DEFAULT_TERM_YEARS,
+    survivalYears: nda.survivalYears ?? DEFAULT_SURVIVAL_YEARS,
+    governingLaw: nda.governingLaw ?? DEFAULT_GOVERNING_LAW,
+    additionalClauses: nda.additionalClauses ?? "",
   };
+}
+
+function clampYears(v: string): number {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(99, n));
 }
 
 export function NdasClient({
@@ -77,6 +99,11 @@ export function NdasClient({
         owner_signatory_name: draft.ownerSignatoryName.trim() || null,
         owner_signatory_position: draft.ownerSignatoryPosition.trim() || null,
         disclosing_to_name: draft.disclosingToName.trim() || null,
+        purpose: draft.purpose.trim() || null,
+        term_years: draft.termYears,
+        survival_years: draft.survivalYears,
+        governing_law: draft.governingLaw.trim() || DEFAULT_GOVERNING_LAW,
+        additional_clauses: draft.additionalClauses.trim() || null,
       };
       const r = editing ? await updateNda(editing.id, payload) : await createNda(payload);
       if ("error" in r && r.error) { toast.error(r.error); return; }
@@ -347,6 +374,64 @@ function NdaFormPanel({
           onChange={(e) => setDraft((p) => ({ ...p, disclosingToName: e.target.value }))}
           placeholder="Defaults to signatory name"
           style={inputStyle}
+        />
+
+        <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
+          <Eyebrow size={9}>Terms</Eyebrow>
+        </div>
+
+        <FieldLabel>Purpose of disclosure</FieldLabel>
+        <textarea
+          value={draft.purpose}
+          onChange={(e) => setDraft((p) => ({ ...p, purpose: e.target.value }))}
+          rows={3}
+          style={textareaStyle}
+        />
+        <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+          Completes: “…could assist [Owner] with ___.”
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 10 }}>
+          <div>
+            <FieldLabel>Term (years)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              max={99}
+              value={draft.termYears}
+              onChange={(e) => setDraft((p) => ({ ...p, termYears: clampYears(e.target.value) }))}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <FieldLabel>Survival (years)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              max={99}
+              value={draft.survivalYears}
+              onChange={(e) => setDraft((p) => ({ ...p, survivalYears: clampYears(e.target.value) }))}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <FieldLabel>Governing law (state)</FieldLabel>
+            <input
+              value={draft.governingLaw}
+              onChange={(e) => setDraft((p) => ({ ...p, governingLaw: e.target.value }))}
+              placeholder="California"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        <FieldLabel>Additional clauses</FieldLabel>
+        <textarea
+          value={draft.additionalClauses}
+          onChange={(e) => setDraft((p) => ({ ...p, additionalClauses: e.target.value }))}
+          placeholder="Optional — appended as a numbered section before the signatures"
+          rows={3}
+          style={textareaStyle}
         />
 
         <button

@@ -1,4 +1,10 @@
 import { formatDate } from "@/lib/utils";
+import {
+  DEFAULT_PURPOSE,
+  DEFAULT_GOVERNING_LAW,
+  DEFAULT_TERM_YEARS,
+  DEFAULT_SURVIVAL_YEARS,
+} from "@/lib/nda-defaults";
 
 function blank(v: string | null | undefined) {
   return v && v.trim() ? v.trim() : "____________";
@@ -13,6 +19,11 @@ export interface NdaDraft {
   ownerSignatoryName: string;
   ownerSignatoryPosition: string;
   disclosingToName: string;
+  purpose: string;
+  termYears: number;
+  survivalYears: number;
+  governingLaw: string;
+  additionalClauses: string;
 }
 
 export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
@@ -24,6 +35,12 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
   const disclosingTo = blank(draft.disclosingToName || draft.ownerSignatoryName);
   const signatoryName = blank(draft.ownerSignatoryName);
   const signatoryPosition = blank(draft.ownerSignatoryPosition);
+  const purpose = draft.purpose.trim() || DEFAULT_PURPOSE;
+  const termYears = draft.termYears || DEFAULT_TERM_YEARS;
+  const survivalYears = draft.survivalYears || DEFAULT_SURVIVAL_YEARS;
+  const governingLaw = draft.governingLaw.trim() || DEFAULT_GOVERNING_LAW;
+  const extra = draft.additionalClauses.trim();
+  const sigNum = extra ? "XIV" : "XIII";
 
   return (
     <section
@@ -45,7 +62,7 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
         This Non-disclosure Agreement (this &quot;<b>Agreement</b>&quot;) is made effective as of {effectiveDate} (the &quot;Effective Date&quot;), by and between {ownerName} (the &quot;<b>Owner</b>&quot;), of {ownerAddress} and {recipientName} (the &quot;<b>Recipient</b>&quot;), located at {recipientAddress}.
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        Information will be disclosed to {disclosingTo} to determine whether <b>{recipientName}</b> could assist <b>{ownerName}</b> with the development of artists, marketing plans, business development and overall company strategy.
+        Information will be disclosed to {disclosingTo} to determine whether <b>{recipientName}</b> could assist <b>{ownerName}</b> with {purpose}.
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
         The Owner has requested and the Recipient agrees that the Recipient will protect the confidential material and information which may be disclosed between the Owner and the Recipient. Therefore, the parties agree as follows:
@@ -63,10 +80,15 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
         <b>III. INJUNCTION · IV. RETURN OF INFORMATION · V. RELATIONSHIP OF PARTIES · VI. NO WARRANTY · VII. LIMITED LICENSE.</b> Standard protections, return of materials on request, no agency/partnership created, AS-IS Confidential Information, no IP transferred.
       </p>
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        <b>VIII. INDEMNITY · IX. ATTORNEY&apos;S FEES · X. TERM (2 years + 2 years tail) · XI. GENERAL PROVISIONS (governed by California law) · XII. WHISTLEBLOWER PROTECTION.</b>
+        <b>VIII. INDEMNITY · IX. ATTORNEY&apos;S FEES · X. TERM ({termYears} years + {survivalYears} year tail) · XI. GENERAL PROVISIONS (governed by {governingLaw} law) · XII. WHISTLEBLOWER PROTECTION.</b>
       </p>
+      {extra ? (
+        <p style={{ marginBottom: 12, textAlign: "justify", whiteSpace: "pre-wrap" }}>
+          <b>XIII. ADDITIONAL TERMS.</b> {extra}
+        </p>
+      ) : null}
       <p style={{ marginBottom: 12, textAlign: "justify" }}>
-        <b>XIII. SIGNATORIES.</b> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
+        <b>{sigNum}. SIGNATORIES.</b> This Agreement shall be executed by {signatoryName}, {signatoryPosition}, on behalf of {ownerName} and {recipientName} and delivered in the manner prescribed by law as of the date first written above.
       </p>
       <p style={{ fontSize: 11, color: "#777", marginTop: 8, fontStyle: "italic" }}>
         Preview shows a condensed summary. The downloadable PDF contains the full 5-page agreement.

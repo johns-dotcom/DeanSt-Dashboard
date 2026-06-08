@@ -18,6 +18,11 @@ const ndaSchema = z.object({
   owner_signatory_name: z.string().optional().nullable(),
   owner_signatory_position: z.string().optional().nullable(),
   disclosing_to_name: z.string().optional().nullable(),
+  purpose: z.string().optional().nullable(),
+  term_years: z.coerce.number().int().min(0).max(99).default(2),
+  survival_years: z.coerce.number().int().min(0).max(99).default(2),
+  governing_law: z.string().min(1).default("California"),
+  additional_clauses: z.string().optional().nullable(),
 });
 
 export async function createNda(input: z.infer<typeof ndaSchema>) {
@@ -38,6 +43,11 @@ export async function createNda(input: z.infer<typeof ndaSchema>) {
       ownerSignatoryName: parsed.data.owner_signatory_name ?? null,
       ownerSignatoryPosition: parsed.data.owner_signatory_position ?? null,
       disclosingToName: parsed.data.disclosing_to_name ?? null,
+      purpose: parsed.data.purpose?.trim() || null,
+      termYears: parsed.data.term_years,
+      survivalYears: parsed.data.survival_years,
+      governingLaw: parsed.data.governing_law.trim() || "California",
+      additionalClauses: parsed.data.additional_clauses?.trim() || null,
       createdBy: session.member.id,
     })
     .returning();
@@ -74,6 +84,11 @@ export async function updateNda(id: string, input: z.infer<typeof ndaSchema>) {
       ownerSignatoryName: parsed.data.owner_signatory_name ?? null,
       ownerSignatoryPosition: parsed.data.owner_signatory_position ?? null,
       disclosingToName: parsed.data.disclosing_to_name ?? null,
+      purpose: parsed.data.purpose?.trim() || null,
+      termYears: parsed.data.term_years,
+      survivalYears: parsed.data.survival_years,
+      governingLaw: parsed.data.governing_law.trim() || "California",
+      additionalClauses: parsed.data.additional_clauses?.trim() || null,
       updatedAt: new Date(),
     })
     .where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)))
