@@ -38,6 +38,47 @@ export async function deleteDocument(id: string) {
   return { ok: true as const };
 }
 
+const renameDocInput = z.object({
+  id: z.string().uuid(),
+  fileName: z.string().min(1, "Name is required").max(255),
+});
+
+export async function renameDocument(input: z.infer<typeof renameDocInput>) {
+  const parsed = renameDocInput.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const session = await requireSession();
+  const newName = parsed.data.fileName.trim();
+  if (!newName) return { error: "Name is required" };
+
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, parsed.data.id), eq(documents.workspaceId, session.workspace.id)))
+    .limit(1);
+  if (!doc) return { error: "Document not found" };
+  if (newName === doc.fileName) return { ok: true as const };
+
+  await db
+    .update(documents)
+    .set({ fileName: newName, updatedAt: new Date() })
+    .where(eq(documents.id, doc.id));
+
+  await logActivity({
+    action: "document.uploaded",
+    workspaceId: session.workspace.id,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "document",
+    entityId: doc.id,
+    entityLabel: `Renamed · ${doc.fileName} → ${newName}`,
+  });
+
+  revalidatePath("/dashboard/documents");
+  return { ok: true as const };
+}
+
 export async function getDownloadUrl(id: string) {
   const session = await requireSession();
   const [doc] = await db

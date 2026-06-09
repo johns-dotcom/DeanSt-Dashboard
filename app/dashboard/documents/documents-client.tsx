@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { UploadForm } from "./upload-form";
 import {
   deleteDocument,
+  renameDocument,
   getDownloadUrl,
   createDocumentFolder,
   renameDocumentFolder,
@@ -168,6 +169,14 @@ export function DocumentsClient({
       if ("error" in r && r.error) toast.error(r.error); else toast.success("Document deleted");
     });
   }
+  function handleRenameDoc(doc: Doc) {
+    const next = window.prompt(`Rename “${doc.fileName}”`, doc.fileName)?.trim();
+    if (!next || next === doc.fileName) return;
+    startTransition(async () => {
+      const r = await renameDocument({ id: doc.id, fileName: next });
+      if ("error" in r && r.error) toast.error(r.error); else toast.success("Document renamed");
+    });
+  }
 
   // ─── folder ops (parameterized so grid/list/tree all reuse them) ───
   function newFolderIn(client: string, parentId: string | null, label: string) {
@@ -269,6 +278,7 @@ export function DocumentsClient({
         </span>
         <span className="flex flex-none items-center gap-2 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
           <IconBtn label="Move" onClick={() => moveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+          <IconBtn label="Rename" onClick={() => handleRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
           <IconBtn label="View" onClick={() => handleView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
           <IconBtn label="Download" onClick={() => handleDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
           <IconBtn label="Delete" onClick={() => handleDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
@@ -440,6 +450,7 @@ export function DocumentsClient({
           onView={handleView}
           onDownload={handleDownload}
           onDeleteDoc={handleDeleteDoc}
+          onRenameDoc={handleRenameDoc}
           onMoveDoc={moveDoc}
           onUpload={() => setUploadTarget({ client: currentClient, folderId: currentFolderId })}
           onUploadFiles={(folderId, files) => uploadFiles(files, currentClient, folderId)}
@@ -549,6 +560,7 @@ function FolderView({
   onView,
   onDownload,
   onDeleteDoc,
+  onRenameDoc,
   onMoveDoc,
   onUpload,
   onUploadFiles,
@@ -567,6 +579,7 @@ function FolderView({
   onView: (d: Doc) => void;
   onDownload: (d: Doc) => void;
   onDeleteDoc: (d: Doc) => void;
+  onRenameDoc: (d: Doc) => void;
   onMoveDoc: (d: Doc) => void;
   onUpload: () => void;
   onUploadFiles: (folderId: string | null, files: File[]) => void;
@@ -632,6 +645,7 @@ function FolderView({
                   <span className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex group-hover:hidden"><span>{formatDate(doc.uploadedAt)}</span><span className="w-16 text-right">{formatBytes(doc.fileSize)}</span></span>
                   <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                     <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                    <IconBtn label="Rename" onClick={() => onRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
                     <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
                     <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
                     <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
@@ -683,6 +697,7 @@ function FolderView({
                 <span className="flex flex-none items-center gap-2 text-xs text-muted-foreground">
                   <span className="hidden sm:inline">{formatDate(doc.uploadedAt)}</span>
                   <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                  <IconBtn label="Rename" onClick={() => onRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
                   <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
                 <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
                   <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
