@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Folder,
   FileText,
   Upload,
+  UploadCloud,
   Trash2,
   Download,
   Eye,
@@ -78,7 +80,9 @@ export function DocumentsClient({
   const [uploadTarget, setUploadTarget] = useState<{ client: string; folderId: string | null } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   useEffect(() => {
     const stored = localStorage.getItem("deanst.documents.view");
@@ -210,6 +214,35 @@ export function DocumentsClient({
       if ("error" in r && r.error) toast.error(r.error);
       else { toast.success("Moved"); setMoveTarget(null); }
     });
+  }
+
+  // ─── drag-and-drop upload (drop files onto a client/folder) ───
+  async function uploadFiles(files: File[], client: string, folderId: string | null) {
+    if (files.length === 0 || uploading) return;
+    setUploading(true);
+    let ok = 0;
+    const failures: string[] = [];
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("client", client);
+        if (folderId) form.append("folder_id", folderId);
+        const res = await fetch("/api/upload/document", { method: "POST", body: form });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+          throw new Error(body.error ?? `Upload failed (${res.status})`);
+        }
+        ok += 1;
+      } catch (err) {
+        failures.push(`${file.name}: ${err instanceof Error ? err.message : "failed"}`);
+      }
+    }
+    setUploading(false);
+    const where = folderId ? pathLabel(folderId) : client;
+    if (ok > 0) toast.success(`Uploaded ${ok} file${ok === 1 ? "" : "s"} to ${where}`);
+    if (failures.length > 0) toast.error(failures.join("\n"));
+    router.refresh();
   }
 
   const moveDoc = (d: Doc) => setMoveTarget({ kind: "doc", id: d.id, name: d.fileName, client: d.client });
@@ -360,10 +393,14 @@ export function DocumentsClient({
             {clients.map((c) => {
               const count = childFolders(c, null).length + docsIn(c, null).length;
               return (
-                <button key={c} onClick={() => openClient(c)} className="flex w-full items-center justify-between border-b-hairline border-border px-4 py-2.5 text-left last:border-b-0 transition-colors hover:bg-hover">
-                  <span className="flex items-center gap-2.5 text-sm"><Folder className={cn("h-4 w-4", folderColor(c))} /><span className="font-medium">{c}</span></span>
-                  <span className="text-xs text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
-                </button>
+                <DropArea key={c} onFiles={(files) => uploadFiles(files, c, null)} disabled={uploading}>
+                  {(over) => (
+                    <button onClick={() => openClient(c)} className={cn("flex w-full items-center justify-between border-b-hairline border-border px-4 py-2.5 text-left last:border-b-0 transition-colors hover:bg-hover", over && "bg-hover ring-1 ring-inset ring-foreground")}>
+                      <span className="flex items-center gap-2.5 text-sm"><Folder className={cn("h-4 w-4", folderColor(c))} /><span className="font-medium">{c}</span></span>
+                      <span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span>
+                    </button>
+                  )}
+                </DropArea>
               );
             })}
           </div>
@@ -372,11 +409,15 @@ export function DocumentsClient({
             {clients.map((c) => {
               const count = childFolders(c, null).length + docsIn(c, null).length;
               return (
-                <button key={c} onClick={() => openClient(c)} className="group flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 text-left transition-colors hover:bg-hover">
-                  <Folder className={cn("h-5 w-5 flex-none", folderColor(c))} />
-                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{c}</span><span className="text-xs text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span></span>
-                  <ChevronRight className="h-4 w-4 flex-none text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </button>
+                <DropArea key={c} onFiles={(files) => uploadFiles(files, c, null)} disabled={uploading} className="rounded-lg">
+                  {(over) => (
+                    <button onClick={() => openClient(c)} className={cn("group flex w-full items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 text-left transition-colors hover:bg-hover", over && "border-foreground bg-hover ring-1 ring-foreground")}>
+                      <Folder className={cn("h-5 w-5 flex-none", folderColor(c))} />
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{c}</span><span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span></span>
+                      <ChevronRight className="h-4 w-4 flex-none text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                  )}
+                </DropArea>
               );
             })}
           </div>
@@ -397,6 +438,9 @@ export function DocumentsClient({
           onDeleteDoc={handleDeleteDoc}
           onMoveDoc={moveDoc}
           onUpload={() => setUploadTarget({ client: currentClient, folderId: currentFolderId })}
+          onUploadFiles={(folderId, files) => uploadFiles(files, currentClient, folderId)}
+          currentFolderId={currentFolderId}
+          uploading={uploading}
           pending={pending}
         />
       )}
@@ -479,6 +523,9 @@ function FolderView({
   onDeleteDoc,
   onMoveDoc,
   onUpload,
+  onUploadFiles,
+  currentFolderId,
+  uploading,
   pending,
 }: {
   view: ViewMode;
@@ -494,84 +541,107 @@ function FolderView({
   onDeleteDoc: (d: Doc) => void;
   onMoveDoc: (d: Doc) => void;
   onUpload: () => void;
+  onUploadFiles: (folderId: string | null, files: File[]) => void;
+  currentFolderId: string | null;
+  uploading: boolean;
   pending: boolean;
 }) {
   if (folders.length === 0 && files.length === 0) {
     return (
-      <EmptyState
-        icon={<Folder className="h-4 w-4" />}
-        title="This folder is empty"
-        description="Create a subfolder or upload a file here."
-        action={<Button onClick={onUpload}><Upload className="h-4 w-4" /> Upload here</Button>}
-      />
+      <DropArea onFiles={(f) => onUploadFiles(currentFolderId, f)} disabled={uploading} className="rounded-lg">
+        {(over) => (
+          <div className={cn("rounded-lg border border-dashed border-border bg-muted/20 transition-colors", over && "border-foreground bg-hover")}>
+            <EmptyState
+              icon={over ? <UploadCloud className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
+              title={over ? "Drop to upload here" : "This folder is empty"}
+              description={over ? "Release to upload your files to this folder." : "Create a subfolder, drop files here, or upload a file."}
+              action={over ? undefined : <Button onClick={onUpload}><Upload className="h-4 w-4" /> Upload here</Button>}
+            />
+          </div>
+        )}
+      </DropArea>
     );
   }
 
   // ─── LIST ───
   if (view === "list") {
     return (
-      <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
-        <div className="flex items-center justify-between border-b-hairline border-border px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-          <span>Name</span>
-          <span className="flex items-center gap-6"><span className="hidden sm:inline">Modified</span><span className="w-16 text-right">Size</span></span>
-        </div>
-        {folders.map((f) => {
-          const count = itemCount(f);
-          return (
-            <div key={f.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
-              <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left text-sm">
-                <Folder className={cn("h-4 w-4 flex-none", folderColor(f.id))} />
-                <span className="truncate font-medium">{f.name}</span>
-                <span className="text-xs text-muted-foreground">{count}</span>
-              </button>
-              <span className="flex flex-none items-center gap-1">
-                <span className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex group-hover:hidden"><span>—</span><span className="w-16 text-right">—</span></span>
-                <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
-                </span>
-              </span>
+      <DropArea onFiles={(f) => onUploadFiles(currentFolderId, f)} disabled={uploading} className="rounded-lg">
+        {(containerOver) => (
+          <div className={cn("overflow-hidden rounded-lg border-hairline border-border bg-surface transition-colors", containerOver && "ring-1 ring-inset ring-foreground")}>
+            <div className="flex items-center justify-between border-b-hairline border-border px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span>Name</span>
+              <span className="flex items-center gap-6"><span className="hidden sm:inline">Modified</span><span className="w-16 text-right">Size</span></span>
             </div>
-          );
-        })}
-        {files.map((doc) => (
-          <div key={doc.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
-            <span className="flex min-w-0 flex-1 items-center gap-2.5 text-sm"><FileText className="h-4 w-4 flex-none text-muted-foreground" /><span className="truncate">{doc.fileName}</span></span>
-            <span className="flex flex-none items-center gap-1">
-              <span className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex group-hover:hidden"><span>{formatDate(doc.uploadedAt)}</span><span className="w-16 text-right">{formatBytes(doc.fileSize)}</span></span>
-              <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
-              </span>
-            </span>
+            {folders.map((f) => {
+              const count = itemCount(f);
+              return (
+                <DropArea key={f.id} onFiles={(files) => onUploadFiles(f.id, files)} disabled={uploading} className="border-b-hairline border-border last:border-b-0">
+                  {(over) => (
+                    <div className={cn("group flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-hover", over && "bg-hover ring-1 ring-inset ring-foreground")}>
+                      <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left text-sm">
+                        <Folder className={cn("h-4 w-4 flex-none", folderColor(f.id))} />
+                        <span className="truncate font-medium">{f.name}</span>
+                        <span className="text-xs text-muted-foreground">{over ? "Drop to upload" : count}</span>
+                      </button>
+                      <span className="flex flex-none items-center gap-1">
+                        <span className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex group-hover:hidden"><span>—</span><span className="w-16 text-right">—</span></span>
+                        <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                          <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                          <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
+                          <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                        </span>
+                      </span>
+                    </div>
+                  )}
+                </DropArea>
+              );
+            })}
+            {files.map((doc) => (
+              <div key={doc.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
+                <span className="flex min-w-0 flex-1 items-center gap-2.5 text-sm"><FileText className="h-4 w-4 flex-none text-muted-foreground" /><span className="truncate">{doc.fileName}</span></span>
+                <span className="flex flex-none items-center gap-1">
+                  <span className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex group-hover:hidden"><span>{formatDate(doc.uploadedAt)}</span><span className="w-16 text-right">{formatBytes(doc.fileSize)}</span></span>
+                  <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                    <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
+                    <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
+                    <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                  </span>
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </DropArea>
     );
   }
 
   // ─── GRID (default) ───
   return (
-    <div className="space-y-5">
+    <DropArea onFiles={(f) => onUploadFiles(currentFolderId, f)} disabled={uploading} className="space-y-5 rounded-lg">
+      {(containerOver) => (
+    <div className={cn("space-y-5 rounded-lg transition-colors", containerOver && "ring-1 ring-foreground")}>
       {folders.length > 0 ? (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {folders.map((f) => {
             const count = itemCount(f);
             return (
-              <div key={f.id} className="group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover">
-                <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                  <Folder className={cn("h-5 w-5 flex-none", folderColor(f.id))} />
-                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{f.name}</span><span className="text-xs text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span></span>
-                </button>
-                <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
-                </div>
-              </div>
+              <DropArea key={f.id} onFiles={(files) => onUploadFiles(f.id, files)} disabled={uploading} className="rounded-lg">
+                {(over) => (
+                  <div className={cn("group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover", over && "border-foreground bg-hover ring-1 ring-foreground")}>
+                    <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <Folder className={cn("h-5 w-5 flex-none", folderColor(f.id))} />
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{f.name}</span><span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span></span>
+                    </button>
+                    <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                    </div>
+                  </div>
+                )}
+              </DropArea>
             );
           })}
         </div>
@@ -594,6 +664,49 @@ function FolderView({
           </ul>
         </div>
       ) : null}
+    </div>
+      )}
+    </DropArea>
+  );
+}
+
+function DropArea({
+  onFiles,
+  disabled,
+  className,
+  children,
+}: {
+  onFiles: (files: File[]) => void;
+  disabled?: boolean;
+  className?: string;
+  children: (over: boolean) => React.ReactNode;
+}) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      onDragOver={(e) => {
+        if (disabled) return;
+        // Only react to actual file drags, not internal element drags.
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        e.stopPropagation();
+        setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        if (disabled) return;
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length) onFiles(files);
+      }}
+      className={className}
+    >
+      {children(over)}
     </div>
   );
 }
