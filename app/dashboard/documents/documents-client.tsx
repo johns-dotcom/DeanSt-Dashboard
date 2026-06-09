@@ -19,11 +19,13 @@ import {
   LayoutGrid,
   List as ListIcon,
   FolderTree,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { UploadForm } from "./upload-form";
 import {
   deleteDocument,
@@ -79,6 +81,7 @@ export function DocumentsClient({
   const [view, setView] = useState<ViewMode>("grid");
   const [uploadTarget, setUploadTarget] = useState<{ client: string; folderId: string | null } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -154,8 +157,9 @@ export function DocumentsClient({
     window.open(r.url, "_blank");
   }
   function handleView(doc: Doc) {
-    // Opens inline in a new tab (PDFs/images render; other types fall back to download).
-    window.open(`/api/files/document/${doc.id}?inline=1`, "_blank", "noopener");
+    // Opens an inline preview in a modal on this page (PDFs/images render in the
+    // embedded frame; other types fall back to the Download / Open-in-tab buttons).
+    setPreviewDoc(doc);
   }
   function handleDeleteDoc(doc: Doc) {
     if (!confirm(`Delete ${doc.fileName}?`)) return;
@@ -478,6 +482,30 @@ export function DocumentsClient({
           ) : null}
         </SlideOverContent>
       </SlideOver>
+
+      {/* Inline preview */}
+      <Dialog open={Boolean(previewDoc)} onOpenChange={(v) => { if (!v) setPreviewDoc(null); }}>
+        {previewDoc ? (
+          <DialogContent className="flex h-[88vh] w-[92vw] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+            <DialogTitle className="sr-only">{previewDoc.fileName}</DialogTitle>
+            <div className="flex items-center justify-between gap-3 border-b-hairline border-border px-4 py-2.5">
+              <span className="flex min-w-0 items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 flex-none text-muted-foreground" />
+                <span className="truncate font-medium">{previewDoc.fileName}</span>
+              </span>
+              <span className="flex flex-none items-center gap-1 pr-7">
+                <IconBtn label="Open in new tab" onClick={() => window.open(`/api/files/document/${previewDoc.id}?inline=1`, "_blank", "noopener")}><ExternalLink className="h-3.5 w-3.5" /></IconBtn>
+                <IconBtn label="Download" onClick={() => handleDownload(previewDoc)}><Download className="h-3.5 w-3.5" /></IconBtn>
+              </span>
+            </div>
+            <iframe
+              src={`/api/files/document/${previewDoc.id}?inline=1`}
+              title={previewDoc.fileName}
+              className="h-full w-full flex-1 bg-white"
+            />
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
