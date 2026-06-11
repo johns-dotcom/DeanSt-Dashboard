@@ -9,6 +9,7 @@ import {
   numeric,
   jsonb,
   primaryKey,
+  unique,
   pgEnum,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -129,7 +130,11 @@ export const invoices = pgTable("invoices", {
   sent: boolean("sent").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  // Invoice numbers must be unique within a workspace — guards against the
+  // sequence counter ever drifting out of sync and producing a duplicate.
+  workspaceNumberUnique: unique("invoices_workspace_number_unique").on(t.workspaceId, t.invoiceNumber),
+}));
 
 export const deals = pgTable("deals", {
   id: uuid("id").primaryKey().defaultRandom(),

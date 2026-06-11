@@ -50,6 +50,13 @@
       "when": 1779504000000,
       "tag": "0006_document_folder_tree",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779590400000,
+      "tag": "0007_invoice_number_unique",
+      "breakpoints": true
     }
   ]
 }
