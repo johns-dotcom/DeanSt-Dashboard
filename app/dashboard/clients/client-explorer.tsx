@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Folder,
   FileText,
@@ -36,17 +37,13 @@ import {
   deleteDocumentFolder,
   moveDocument,
   moveFolder,
-} from "./actions";
+} from "../documents/actions";
 import { cn, formatDate } from "@/lib/utils";
-import type { Document as Doc, DocumentFolder } from "@/lib/db/schema";
+import type { Client, Document as Doc, DocumentFolder } from "@/lib/db/schema";
 
 const FOLDER_COLORS = [
-  "text-rose-500",
-  "text-amber-500",
-  "text-emerald-500",
-  "text-sky-500",
-  "text-violet-500",
-  "text-orange-500",
+  "text-rose-500", "text-amber-500", "text-emerald-500",
+  "text-sky-500", "text-violet-500", "text-orange-500",
 ];
 
 function folderColor(seed: string) {
@@ -65,22 +62,21 @@ function formatBytes(n: number) {
 type ViewMode = "grid" | "list" | "tree";
 
 type MoveTarget =
-  | { kind: "doc"; id: string; name: string; client: string }
-  | { kind: "folder"; id: string; name: string; client: string };
+  | { kind: "doc"; id: string; name: string }
+  | { kind: "folder"; id: string; name: string };
 
-export function DocumentsClient({
-  documents,
+export function ClientExplorer({
+  client,
   folders,
-  workspaceId,
+  documents,
 }: {
-  documents: Doc[];
+  client: Client;
   folders: DocumentFolder[];
-  workspaceId: string;
+  documents: Doc[];
 }) {
-  const [currentClient, setCurrentClient] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("grid");
-  const [uploadTarget, setUploadTarget] = useState<{ client: string; folderId: string | null } | null>(null);
+  const [uploadFolderId, setUploadFolderId] = useState<{ folderId: string | null } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -89,12 +85,12 @@ export function DocumentsClient({
   const router = useRouter();
 
   useEffect(() => {
-    const stored = localStorage.getItem("deanst.documents.view");
+    const stored = localStorage.getItem("deanst.clients.view");
     if (stored === "grid" || stored === "list" || stored === "tree") setView(stored);
   }, []);
   function changeView(next: ViewMode) {
     setView(next);
-    localStorage.setItem("deanst.documents.view", next);
+    localStorage.setItem("deanst.clients.view", next);
   }
 
   const foldersById = useMemo(() => {
@@ -103,22 +99,14 @@ export function DocumentsClient({
     return m;
   }, [folders]);
 
-  const clients = useMemo(() => {
-    const set = new Set<string>();
-    documents.forEach((d) => set.add(d.client));
-    folders.forEach((f) => set.add(f.client));
-    if (currentClient) set.add(currentClient);
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [documents, folders, currentClient]);
-
-  function childFolders(client: string, parentId: string | null) {
+  function childFolders(parentId: string | null) {
     return folders
-      .filter((f) => f.client === client && (f.parentId ?? null) === parentId)
+      .filter((f) => (f.parentId ?? null) === parentId)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }
-  function docsIn(client: string, folderId: string | null) {
+  function docsIn(folderId: string | null) {
     return documents
-      .filter((d) => d.client === client && (d.folderId ?? null) === folderId)
+      .filter((d) => (d.folderId ?? null) === folderId)
       .sort((a, b) => a.fileName.localeCompare(b.fileName));
   }
   function ancestry(folderId: string): DocumentFolder[] {
@@ -139,17 +127,14 @@ export function DocumentsClient({
     return ancestry(folderId).map((f) => f.name).join(" / ");
   }
   function folderItemCount(folder: DocumentFolder): number {
-    return childFolders(folder.client, folder.id).length + docsIn(folder.client, folder.id).length;
+    return childFolders(folder.id).length + docsIn(folder.id).length;
   }
 
   // ─── navigation ───
-  const goHome = () => { setCurrentClient(null); setCurrentFolderId(null); };
-  const openClient = (c: string) => { setCurrentClient(c); setCurrentFolderId(null); };
   const openFolder = (id: string) => setCurrentFolderId(id);
   const goToFolder = (id: string | null) => setCurrentFolderId(id);
   const isExpanded = (id: string, def: boolean) => expanded[id] ?? def;
-  const toggleExpand = (id: string, def: boolean) =>
-    setExpanded((p) => ({ ...p, [id]: !(p[id] ?? def) }));
+  const toggleExpand = (id: string, def: boolean) => setExpanded((p) => ({ ...p, [id]: !(p[id] ?? def) }));
 
   // ─── document ops ───
   async function handleDownload(doc: Doc) {
@@ -157,11 +142,7 @@ export function DocumentsClient({
     if ("error" in r) { toast.error(r.error); return; }
     window.open(r.url, "_blank");
   }
-  function handleView(doc: Doc) {
-    // Opens an inline preview in a modal on this page (PDFs/images render in the
-    // embedded frame; other types fall back to the Download / Open-in-tab buttons).
-    setPreviewDoc(doc);
-  }
+  function handleView(doc: Doc) { setPreviewDoc(doc); }
   function handleDeleteDoc(doc: Doc) {
     if (!confirm(`Delete ${doc.fileName}?`)) return;
     startTransition(async () => {
@@ -178,12 +159,12 @@ export function DocumentsClient({
     });
   }
 
-  // ─── folder ops (parameterized so grid/list/tree all reuse them) ───
-  function newFolderIn(client: string, parentId: string | null, label: string) {
+  // ─── folder ops ───
+  function newFolderIn(parentId: string | null, label: string) {
     const name = window.prompt(`New folder in ${label}`)?.trim();
     if (!name) return;
     startTransition(async () => {
-      const r = await createDocumentFolder({ client, name, parentId });
+      const r = await createDocumentFolder({ clientId: client.id, name, parentId });
       if ("error" in r && r.error) toast.error(r.error); else toast.success(`Created “${name}”`);
     });
   }
@@ -206,17 +187,6 @@ export function DocumentsClient({
       if ("error" in r && r.error) toast.error(r.error); else toast.success("Folder deleted");
     });
   }
-  function handleNewClient() {
-    const name = window.prompt("New client name")?.trim();
-    if (!name) return;
-    const first = (window.prompt(`First folder in ${name}`, "General") ?? "").trim() || "General";
-    startTransition(async () => {
-      const r = await createDocumentFolder({ client: name, name: first, parentId: null });
-      if ("error" in r && r.error) { toast.error(r.error); return; }
-      toast.success(`Client “${name}” created`);
-      openClient(name);
-    });
-  }
   function submitMove(destFolderId: string | null) {
     if (!moveTarget) return;
     startTransition(async () => {
@@ -229,8 +199,8 @@ export function DocumentsClient({
     });
   }
 
-  // ─── drag-and-drop upload (drop files onto a client/folder) ───
-  async function uploadFiles(files: File[], client: string, folderId: string | null) {
+  // ─── drag-and-drop upload ───
+  async function uploadFiles(files: File[], folderId: string | null) {
     if (files.length === 0 || uploading) return;
     setUploading(true);
     let ok = 0;
@@ -239,7 +209,7 @@ export function DocumentsClient({
       try {
         const form = new FormData();
         form.append("file", file);
-        form.append("client", client);
+        form.append("client_id", client.id);
         if (folderId) form.append("folder_id", folderId);
         const res = await fetch("/api/upload/document", { method: "POST", body: form });
         if (!res.ok) {
@@ -252,26 +222,22 @@ export function DocumentsClient({
       }
     }
     setUploading(false);
-    const where = folderId ? pathLabel(folderId) : client;
+    const where = folderId ? pathLabel(folderId) : client.name;
     if (ok > 0) toast.success(`Uploaded ${ok} file${ok === 1 ? "" : "s"} to ${where}`);
     if (failures.length > 0) toast.error(failures.join("\n"));
     router.refresh();
   }
 
-  const moveDoc = (d: Doc) => setMoveTarget({ kind: "doc", id: d.id, name: d.fileName, client: d.client });
-  const moveFolderT = (f: DocumentFolder) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, client: f.client });
+  const moveDoc = (d: Doc) => setMoveTarget({ kind: "doc", id: d.id, name: d.fileName });
+  const moveFolderT = (f: DocumentFolder) => setMoveTarget({ kind: "folder", id: f.id, name: f.name });
 
   const breadcrumb = currentFolderId ? ancestry(currentFolderId) : [];
-  const showDrillToolbar = view !== "tree" && currentClient !== null;
+  const activeFolderId = view === "tree" ? null : currentFolderId;
 
   // ─── tree renderers ───
   function renderFileRow(doc: Doc, depth: number) {
     return (
-      <div
-        key={doc.id}
-        className="group flex items-center justify-between rounded-md py-1.5 pr-2 transition-colors hover:bg-hover"
-        style={{ paddingLeft: depth * 18 + 8 }}
-      >
+      <div key={doc.id} className="group flex items-center justify-between rounded-md py-1.5 pr-2 transition-colors hover:bg-hover" style={{ paddingLeft: depth * 18 + 8 }}>
         <span className="flex min-w-0 items-center gap-2 text-sm">
           <FileText className="h-4 w-4 flex-none text-muted-foreground" />
           <span className="truncate">{doc.fileName}</span>
@@ -288,8 +254,8 @@ export function DocumentsClient({
   }
   function renderFolderNode(folder: DocumentFolder, depth: number): React.ReactNode {
     const open = isExpanded(folder.id, false);
-    const kids = childFolders(folder.client, folder.id);
-    const files = docsIn(folder.client, folder.id);
+    const kids = childFolders(folder.id);
+    const files = docsIn(folder.id);
     return (
       <div key={folder.id}>
         <div className="group flex items-center justify-between rounded-md py-1.5 pr-2 transition-colors hover:bg-hover" style={{ paddingLeft: depth * 18 + 4 }}>
@@ -300,8 +266,8 @@ export function DocumentsClient({
             <span className="text-xs text-muted-foreground">{kids.length + files.length}</span>
           </button>
           <span className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-            <IconBtn label="New subfolder" onClick={() => newFolderIn(folder.client, folder.id, folder.name)} disabled={pending}><FolderPlus className="h-3.5 w-3.5" /></IconBtn>
-            <IconBtn label="Upload here" onClick={() => setUploadTarget({ client: folder.client, folderId: folder.id })}><Upload className="h-3.5 w-3.5" /></IconBtn>
+            <IconBtn label="New subfolder" onClick={() => newFolderIn(folder.id, folder.name)} disabled={pending}><FolderPlus className="h-3.5 w-3.5" /></IconBtn>
+            <IconBtn label="Upload here" onClick={() => setUploadFolderId({ folderId: folder.id })}><Upload className="h-3.5 w-3.5" /></IconBtn>
             <IconBtn label="Move" onClick={() => moveFolderT(folder)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
             <IconBtn label="Rename" onClick={() => handleRenameFolder(folder)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
             <IconBtn label="Delete" onClick={() => handleDeleteFolder(folder)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
@@ -320,128 +286,52 @@ export function DocumentsClient({
     );
   }
 
+  const topFolders = childFolders(null);
+  const rootFiles = docsIn(null);
+
   return (
     <div className="space-y-5">
-      {/* Top bar: breadcrumb (drill modes) + view switch */}
+      {/* Top bar: breadcrumb + actions + view switch */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {view === "tree" ? (
-          <div className="flex items-center gap-1.5 text-sm font-medium"><FolderTree className="h-4 w-4 text-muted-foreground" /> All documents</div>
-        ) : (
-          <nav className="flex flex-wrap items-center gap-1 text-sm">
-            <button onClick={goHome} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 transition-colors hover:bg-hover", currentClient === null ? "font-medium text-foreground" : "text-muted-foreground")}>
-              <Home className="h-3.5 w-3.5" /> Documents
-            </button>
-            {currentClient ? (
-              <>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                <button onClick={() => goToFolder(null)} className={cn("rounded px-2 py-1 transition-colors hover:bg-hover", currentFolderId === null ? "font-medium text-foreground" : "text-muted-foreground")}>{currentClient}</button>
-              </>
-            ) : null}
-            {breadcrumb.map((f, i) => (
-              <span key={f.id} className="flex items-center gap-1">
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                <button onClick={() => goToFolder(f.id)} className={cn("rounded px-2 py-1 transition-colors hover:bg-hover", i === breadcrumb.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{f.name}</button>
-              </span>
-            ))}
-          </nav>
-        )}
+        <nav className="flex flex-wrap items-center gap-1 text-sm">
+          <Link href="/dashboard/clients" className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-hover">
+            <Home className="h-3.5 w-3.5" /> Clients
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          <button onClick={() => goToFolder(null)} className={cn("rounded px-2 py-1 transition-colors hover:bg-hover", currentFolderId === null ? "font-medium text-foreground" : "text-muted-foreground")}>{client.name}</button>
+          {view !== "tree" ? breadcrumb.map((f, i) => (
+            <span key={f.id} className="flex items-center gap-1">
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <button onClick={() => goToFolder(f.id)} className={cn("rounded px-2 py-1 transition-colors hover:bg-hover", i === breadcrumb.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{f.name}</button>
+            </span>
+          )) : null}
+        </nav>
 
         <div className="flex items-center gap-2">
-          {showDrillToolbar ? (
-            <>
-              <Button variant="ghost" onClick={() => newFolderIn(currentClient!, currentFolderId, currentFolderId ? pathLabel(currentFolderId) : currentClient!)} disabled={pending}>
-                <FolderPlus className="h-4 w-4" /> New folder
-              </Button>
-              <Button onClick={() => setUploadTarget({ client: currentClient!, folderId: currentFolderId })}>
-                <Upload className="h-4 w-4" /> Upload here
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" onClick={handleNewClient}><FolderPlus className="h-4 w-4" /> New client</Button>
-          )}
+          <Button variant="ghost" onClick={() => newFolderIn(activeFolderId, activeFolderId ? pathLabel(activeFolderId) : client.name)} disabled={pending}>
+            <FolderPlus className="h-4 w-4" /> New folder
+          </Button>
+          <Button onClick={() => setUploadFolderId({ folderId: activeFolderId })}>
+            <Upload className="h-4 w-4" /> Upload here
+          </Button>
           <ViewToggle value={view} onChange={changeView} />
         </div>
       </div>
 
-      {/* ─── TREE ─── */}
       {view === "tree" ? (
-        clients.length === 0 ? (
-          <EmptyState icon={<Folder className="h-4 w-4" />} title="No documents yet" description="Create a client to start organizing files." action={<Button onClick={handleNewClient}><FolderPlus className="h-4 w-4" /> New client</Button>} />
+        topFolders.length === 0 && rootFiles.length === 0 ? (
+          <EmptyState icon={<Folder className="h-4 w-4" />} title="No files yet" description="Create a folder or upload a file to get started." action={<Button onClick={() => setUploadFolderId({ folderId: null })}><Upload className="h-4 w-4" /> Upload here</Button>} />
         ) : (
           <div className="rounded-lg border-hairline border-border bg-surface p-2">
-            {clients.map((c) => {
-              const open = isExpanded(`client:${c}`, true);
-              const top = childFolders(c, null);
-              const rootFiles = docsIn(c, null);
-              return (
-                <div key={c}>
-                  <div className="group flex items-center justify-between rounded-md py-1.5 pr-2 transition-colors hover:bg-hover" style={{ paddingLeft: 4 }}>
-                    <button onClick={() => toggleExpand(`client:${c}`, true)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm">
-                      <ChevronDown className={cn("h-3.5 w-3.5 flex-none text-muted-foreground transition-transform", !open && "-rotate-90")} />
-                      <Folder className={cn("h-4 w-4 flex-none", folderColor(c))} />
-                      <span className="truncate font-medium">{c}</span>
-                      <span className="text-xs text-muted-foreground">{top.length + rootFiles.length}</span>
-                    </button>
-                    <span className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <IconBtn label="New folder" onClick={() => newFolderIn(c, null, c)} disabled={pending}><FolderPlus className="h-3.5 w-3.5" /></IconBtn>
-                      <IconBtn label="Upload here" onClick={() => setUploadTarget({ client: c, folderId: null })}><Upload className="h-3.5 w-3.5" /></IconBtn>
-                    </span>
-                  </div>
-                  {open ? (
-                    <div>
-                      {top.map((f) => renderFolderNode(f, 1))}
-                      {rootFiles.map((d) => renderFileRow(d, 1))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )
-      ) : currentClient === null ? (
-        // ─── HOME (grid/list) ───
-        clients.length === 0 ? (
-          <EmptyState icon={<Folder className="h-4 w-4" />} title="No documents yet" description="Create a client to start organizing files into folders." action={<Button onClick={handleNewClient}><FolderPlus className="h-4 w-4" /> New client</Button>} />
-        ) : view === "list" ? (
-          <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
-            {clients.map((c) => {
-              const count = childFolders(c, null).length + docsIn(c, null).length;
-              return (
-                <DropArea key={c} onFiles={(files) => uploadFiles(files, c, null)} disabled={uploading}>
-                  {(over) => (
-                    <button onClick={() => openClient(c)} className={cn("flex w-full items-center justify-between border-b-hairline border-border px-4 py-2.5 text-left last:border-b-0 transition-colors hover:bg-hover", over && "bg-hover ring-1 ring-inset ring-foreground")}>
-                      <span className="flex items-center gap-2.5 text-sm"><Folder className={cn("h-4 w-4", folderColor(c))} /><span className="font-medium">{c}</span></span>
-                      <span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span>
-                    </button>
-                  )}
-                </DropArea>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-            {clients.map((c) => {
-              const count = childFolders(c, null).length + docsIn(c, null).length;
-              return (
-                <DropArea key={c} onFiles={(files) => uploadFiles(files, c, null)} disabled={uploading} className="rounded-lg">
-                  {(over) => (
-                    <button onClick={() => openClient(c)} className={cn("group flex w-full items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 text-left transition-colors hover:bg-hover", over && "border-foreground bg-hover ring-1 ring-foreground")}>
-                      <Folder className={cn("h-5 w-5 flex-none", folderColor(c))} />
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{c}</span><span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span></span>
-                      <ChevronRight className="h-4 w-4 flex-none text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                  )}
-                </DropArea>
-              );
-            })}
+            {topFolders.map((f) => renderFolderNode(f, 0))}
+            {rootFiles.map((d) => renderFileRow(d, 0))}
           </div>
         )
       ) : (
-        // ─── INSIDE A CLIENT/FOLDER (grid/list) ───
         <FolderView
           view={view}
-          folders={childFolders(currentClient, currentFolderId)}
-          files={docsIn(currentClient, currentFolderId)}
+          folders={childFolders(currentFolderId)}
+          files={docsIn(currentFolderId)}
           itemCount={folderItemCount}
           onOpenFolder={openFolder}
           onRenameFolder={handleRenameFolder}
@@ -452,8 +342,8 @@ export function DocumentsClient({
           onDeleteDoc={handleDeleteDoc}
           onRenameDoc={handleRenameDoc}
           onMoveDoc={moveDoc}
-          onUpload={() => setUploadTarget({ client: currentClient, folderId: currentFolderId })}
-          onUploadFiles={(folderId, files) => uploadFiles(files, currentClient, folderId)}
+          onUpload={() => setUploadFolderId({ folderId: currentFolderId })}
+          onUploadFiles={(folderId, files) => uploadFiles(files, folderId)}
           currentFolderId={currentFolderId}
           uploading={uploading}
           pending={pending}
@@ -461,18 +351,17 @@ export function DocumentsClient({
       )}
 
       {/* Upload slide-over */}
-      <SlideOver open={Boolean(uploadTarget)} onOpenChange={(v) => { if (!v) setUploadTarget(null); }}>
+      <SlideOver open={Boolean(uploadFolderId)} onOpenChange={(v) => { if (!v) setUploadFolderId(null); }}>
         <SlideOverContent
           title="Upload file"
-          description={uploadTarget ? `Uploading to ${uploadTarget.client}${uploadTarget.folderId ? " / " + pathLabel(uploadTarget.folderId) : ""}` : ""}
+          description={uploadFolderId ? `Uploading to ${client.name}${uploadFolderId.folderId ? " / " + pathLabel(uploadFolderId.folderId) : ""}` : ""}
         >
-          {uploadTarget ? (
+          {uploadFolderId ? (
             <UploadForm
-              workspaceId={workspaceId}
-              client={uploadTarget.client}
-              folderId={uploadTarget.folderId}
-              destinationLabel={uploadTarget.folderId ? `${uploadTarget.client} / ${pathLabel(uploadTarget.folderId)}` : uploadTarget.client}
-              onDone={() => setUploadTarget(null)}
+              clientId={client.id}
+              folderId={uploadFolderId.folderId}
+              destinationLabel={uploadFolderId.folderId ? `${client.name} / ${pathLabel(uploadFolderId.folderId)}` : client.name}
+              onDone={() => setUploadFolderId(null)}
             />
           ) : null}
         </SlideOverContent>
@@ -483,8 +372,8 @@ export function DocumentsClient({
         <SlideOverContent title="Move" description={moveTarget ? `Choose a destination for “${moveTarget.name}”.` : ""}>
           {moveTarget ? (
             <MovePicker
-              target={moveTarget}
-              folders={folders.filter((f) => f.client === moveTarget.client)}
+              clientName={client.name}
+              folders={folders}
               pathLabel={pathLabel}
               excludeIds={moveTarget.kind === "folder" ? new Set([moveTarget.id, ...descendantIds(moveTarget.id)]) : new Set()}
               onPick={submitMove}
@@ -509,11 +398,7 @@ export function DocumentsClient({
                 <IconBtn label="Download" onClick={() => handleDownload(previewDoc)}><Download className="h-3.5 w-3.5" /></IconBtn>
               </span>
             </div>
-            <iframe
-              src={`/api/files/document/${previewDoc.id}?inline=1`}
-              title={previewDoc.fileName}
-              className="h-full w-full flex-1 bg-white"
-            />
+            <iframe src={`/api/files/document/${previewDoc.id}?inline=1`} title={previewDoc.fileName} className="h-full w-full flex-1 bg-white" />
           </DialogContent>
         ) : null}
       </Dialog>
@@ -530,18 +415,9 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
   return (
     <div className="inline-flex rounded-lg border-hairline border-border bg-surface p-0.5">
       {opts.map((o) => (
-        <button
-          key={o.v}
-          onClick={() => onChange(o.v)}
-          aria-label={o.label}
-          title={o.label}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors",
-            value === o.v ? "bg-hover font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {o.icon}
-          <span className="hidden sm:inline">{o.label}</span>
+        <button key={o.v} onClick={() => onChange(o.v)} aria-label={o.label} title={o.label}
+          className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors", value === o.v ? "bg-hover font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          {o.icon}<span className="hidden sm:inline">{o.label}</span>
         </button>
       ))}
     </div>
@@ -549,24 +425,8 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
 }
 
 function FolderView({
-  view,
-  folders,
-  files,
-  itemCount,
-  onOpenFolder,
-  onRenameFolder,
-  onDeleteFolder,
-  onMoveFolder,
-  onView,
-  onDownload,
-  onDeleteDoc,
-  onRenameDoc,
-  onMoveDoc,
-  onUpload,
-  onUploadFiles,
-  currentFolderId,
-  uploading,
-  pending,
+  view, folders, files, itemCount, onOpenFolder, onRenameFolder, onDeleteFolder, onMoveFolder,
+  onView, onDownload, onDeleteDoc, onRenameDoc, onMoveDoc, onUpload, onUploadFiles, currentFolderId, uploading, pending,
 }: {
   view: ViewMode;
   folders: DocumentFolder[];
@@ -604,7 +464,6 @@ function FolderView({
     );
   }
 
-  // ─── LIST ───
   if (view === "list") {
     return (
       <DropArea onFiles={(f) => onUploadFiles(currentFolderId, f)} disabled={uploading} className="rounded-lg">
@@ -659,65 +518,62 @@ function FolderView({
     );
   }
 
-  // ─── GRID (default) ───
+  // GRID
   return (
     <DropArea onFiles={(f) => onUploadFiles(currentFolderId, f)} disabled={uploading} className="space-y-5 rounded-lg">
       {(containerOver) => (
-    <div className={cn("space-y-5 rounded-lg transition-colors", containerOver && "ring-1 ring-foreground")}>
-      {folders.length > 0 ? (
-        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          {folders.map((f) => {
-            const count = itemCount(f);
-            return (
-              <DropArea key={f.id} onFiles={(files) => onUploadFiles(f.id, files)} disabled={uploading} className="rounded-lg">
-                {(over) => (
-                  <div className={cn("group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover", over && "border-foreground bg-hover ring-1 ring-foreground")}>
-                    <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                      <Folder className={cn("h-5 w-5 flex-none", folderColor(f.id))} />
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{f.name}</span><span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span></span>
-                    </button>
-                    <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
-                      <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                      <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
-                    </div>
-                  </div>
-                )}
-              </DropArea>
-            );
-          })}
+        <div className={cn("space-y-5 rounded-lg transition-colors", containerOver && "ring-1 ring-foreground")}>
+          {folders.length > 0 ? (
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+              {folders.map((f) => {
+                const count = itemCount(f);
+                return (
+                  <DropArea key={f.id} onFiles={(files) => onUploadFiles(f.id, files)} disabled={uploading} className="rounded-lg">
+                    {(over) => (
+                      <div className={cn("group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover", over && "border-foreground bg-hover ring-1 ring-foreground")}>
+                        <button onClick={() => onOpenFolder(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                          <Folder className={cn("h-5 w-5 flex-none", folderColor(f.id))} />
+                          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{f.name}</span><span className="text-xs text-muted-foreground">{over ? "Drop to upload" : `${count} item${count === 1 ? "" : "s"}`}</span></span>
+                        </button>
+                        <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                          <IconBtn label="Move" onClick={() => onMoveFolder(f)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                          <IconBtn label="Rename" onClick={() => onRenameFolder(f)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
+                          <IconBtn label="Delete" onClick={() => onDeleteFolder(f)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                        </div>
+                      </div>
+                    )}
+                  </DropArea>
+                );
+              })}
+            </div>
+          ) : null}
+          {files.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
+              <ul>
+                {files.map((doc) => (
+                  <li key={doc.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
+                    <span className="flex min-w-0 items-center gap-2.5 text-sm"><FileText className="h-4 w-4 flex-none text-muted-foreground" /><span className="truncate">{doc.fileName}</span></span>
+                    <span className="flex flex-none items-center gap-2 text-xs text-muted-foreground">
+                      <span className="hidden sm:inline">{formatDate(doc.uploadedAt)}</span>
+                      <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Rename" onClick={() => onRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
-      ) : null}
-      {files.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border-hairline border-border bg-surface">
-          <ul>
-            {files.map((doc) => (
-              <li key={doc.id} className="group flex items-center justify-between border-b-hairline border-border px-4 py-2.5 last:border-b-0 transition-colors hover:bg-hover">
-                <span className="flex min-w-0 items-center gap-2.5 text-sm"><FileText className="h-4 w-4 flex-none text-muted-foreground" /><span className="truncate">{doc.fileName}</span></span>
-                <span className="flex flex-none items-center gap-2 text-xs text-muted-foreground">
-                  <span className="hidden sm:inline">{formatDate(doc.uploadedAt)}</span>
-                  <IconBtn label="Move" onClick={() => onMoveDoc(doc)} disabled={pending}><FolderInput className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Rename" onClick={() => onRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="View" onClick={() => onView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label="Download" onClick={() => onDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label="Delete" onClick={() => onDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
       )}
     </DropArea>
   );
 }
 
 function DropArea({
-  onFiles,
-  disabled,
-  className,
-  children,
+  onFiles, disabled, className, children,
 }: {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
@@ -729,20 +585,12 @@ function DropArea({
     <div
       onDragOver={(e) => {
         if (disabled) return;
-        // Only react to actual file drags, not internal element drags.
         if (!Array.from(e.dataTransfer.types).includes("Files")) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setOver(true);
+        e.preventDefault(); e.stopPropagation(); setOver(true);
       }}
-      onDragLeave={(e) => {
-        e.stopPropagation();
-        setOver(false);
-      }}
+      onDragLeave={(e) => { e.stopPropagation(); setOver(false); }}
       onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setOver(false);
+        e.preventDefault(); e.stopPropagation(); setOver(false);
         if (disabled) return;
         const files = Array.from(e.dataTransfer.files);
         if (files.length) onFiles(files);
@@ -754,39 +602,19 @@ function DropArea({
   );
 }
 
-function IconBtn({
-  children,
-  label,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+function IconBtn({ children, label, onClick, disabled }: { children: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className="rounded p-1 text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
-    >
+    <button onClick={onClick} disabled={disabled} aria-label={label} title={label}
+      className="rounded p-1 text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50">
       {children}
     </button>
   );
 }
 
 function MovePicker({
-  target,
-  folders,
-  pathLabel,
-  excludeIds,
-  onPick,
-  pending,
+  clientName, folders, pathLabel, excludeIds, onPick, pending,
 }: {
-  target: MoveTarget;
+  clientName: string;
   folders: DocumentFolder[];
   pathLabel: (id: string) => string;
   excludeIds: Set<string>;
@@ -801,7 +629,7 @@ function MovePicker({
   return (
     <div className="space-y-1">
       <button onClick={() => onPick(null)} disabled={pending} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-hover disabled:opacity-50">
-        <Home className="h-4 w-4 text-muted-foreground" /> {target.client} (root)
+        <Home className="h-4 w-4 text-muted-foreground" /> {clientName} (root)
       </button>
       {destinations.map((d) => (
         <button key={d.id} onClick={() => onPick(d.id)} disabled={pending} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-hover disabled:opacity-50">
@@ -810,7 +638,7 @@ function MovePicker({
         </button>
       ))}
       {destinations.length === 0 ? (
-        <p className="px-3 py-2 text-xs italic text-muted-foreground">No other folders in {target.client} yet.</p>
+        <p className="px-3 py-2 text-xs italic text-muted-foreground">No other folders in {clientName} yet.</p>
       ) : null}
     </div>
   );
