@@ -257,6 +257,9 @@ export const ndas = pgTable("ndas", {
   survivalYears: integer("survival_years").notNull().default(2),
   governingLaw: text("governing_law").notNull().default("California"),
   additionalClauses: text("additional_clauses"),
+  // Full editable agreement body. NULL on legacy NDAs → renderers fall back to
+  // generating it from the structured fields via buildNdaBody().
+  bodyText: text("body_text"),
   signed: boolean("signed").notNull().default(false),
   signedAt: timestamp("signed_at"),
   createdBy: uuid("created_by").references(() => workspaceMembers.id, { onDelete: "set null" }),

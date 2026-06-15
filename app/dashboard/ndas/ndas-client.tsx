@@ -15,6 +15,7 @@ import { NdaPreviewPanel, type NdaDraft } from "./nda-preview";
 import { NdaFilesPanel } from "./nda-files-panel";
 import { createNda, updateNda, deleteNda, setNdaSigned } from "./actions";
 import { formatDate } from "@/lib/utils";
+import { buildNdaBody } from "@/lib/nda-template";
 import {
   DEFAULT_PURPOSE,
   DEFAULT_GOVERNING_LAW,
@@ -37,6 +38,7 @@ const emptyDraft = (defaults?: { name?: string; signatoryName?: string; signator
   survivalYears: DEFAULT_SURVIVAL_YEARS,
   governingLaw: DEFAULT_GOVERNING_LAW,
   additionalClauses: "",
+  bodyText: "",
 });
 
 function toDraft(nda: Nda): NdaDraft {
@@ -54,6 +56,7 @@ function toDraft(nda: Nda): NdaDraft {
     survivalYears: nda.survivalYears ?? DEFAULT_SURVIVAL_YEARS,
     governingLaw: nda.governingLaw ?? DEFAULT_GOVERNING_LAW,
     additionalClauses: nda.additionalClauses ?? "",
+    bodyText: nda.bodyText ?? "",
   };
 }
 
@@ -75,6 +78,8 @@ export function NdasClient({
   const initialDraft = useMemo(() => emptyDraft(defaultOwner), [defaultOwner]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<NdaDraft>(initialDraft);
+  // Until the body is hand-edited it tracks the template live as fields change.
+  const [bodyDirty, setBodyDirty] = useState(false);
   const [filesFor, setFilesFor] = useState<Nda | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -83,8 +88,11 @@ export function NdasClient({
     [editingId, ndas]
   );
 
-  function startNew() { setEditingId(null); setDraft(initialDraft); }
-  function startEdit(n: Nda) { setEditingId(n.id); setDraft(toDraft(n)); }
+  // The body shown/saved: hand-edited text once dirty, else the live template.
+  const effectiveBody = bodyDirty ? draft.bodyText : buildNdaBody(draft);
+
+  function startNew() { setEditingId(null); setDraft(initialDraft); setBodyDirty(false); }
+  function startEdit(n: Nda) { setEditingId(n.id); setDraft(toDraft(n)); setBodyDirty(Boolean(n.bodyText)); }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,6 +112,7 @@ export function NdasClient({
         survival_years: draft.survivalYears,
         governing_law: draft.governingLaw.trim() || DEFAULT_GOVERNING_LAW,
         additional_clauses: draft.additionalClauses.trim() || null,
+        body_text: effectiveBody,
       };
       const r = editing ? await updateNda(editing.id, payload) : await createNda(payload);
       if ("error" in r && r.error) { toast.error(r.error); return; }
@@ -132,6 +141,9 @@ export function NdasClient({
         <NdaFormPanel
           draft={draft}
           setDraft={setDraft}
+          bodyValue={effectiveBody}
+          onBodyChange={(v) => { setBodyDirty(true); setDraft((p) => ({ ...p, bodyText: v })); }}
+          onResetBody={() => { setBodyDirty(false); setDraft((p) => ({ ...p, bodyText: "" })); }}
           onSubmit={handleSubmit}
           onCancel={startNew}
           editing={Boolean(editing)}
@@ -256,6 +268,9 @@ export function NdasClient({
 function NdaFormPanel({
   draft,
   setDraft,
+  bodyValue,
+  onBodyChange,
+  onResetBody,
   onSubmit,
   onCancel,
   editing,
@@ -263,6 +278,9 @@ function NdaFormPanel({
 }: {
   draft: NdaDraft;
   setDraft: React.Dispatch<React.SetStateAction<NdaDraft>>;
+  bodyValue: string;
+  onBodyChange: (v: string) => void;
+  onResetBody: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
   editing: boolean;
@@ -368,27 +386,8 @@ function NdaFormPanel({
           </div>
         </div>
 
-        <FieldLabel>Disclose to (recipient contact)</FieldLabel>
-        <input
-          value={draft.disclosingToName}
-          onChange={(e) => setDraft((p) => ({ ...p, disclosingToName: e.target.value }))}
-          placeholder="Defaults to signatory name"
-          style={inputStyle}
-        />
-
         <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
           <Eyebrow size={9}>Terms</Eyebrow>
-        </div>
-
-        <FieldLabel>Purpose of disclosure</FieldLabel>
-        <textarea
-          value={draft.purpose}
-          onChange={(e) => setDraft((p) => ({ ...p, purpose: e.target.value }))}
-          rows={3}
-          style={textareaStyle}
-        />
-        <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-          Completes: “…could assist [Owner] with ___.”
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 10 }}>
@@ -433,6 +432,30 @@ function NdaFormPanel({
           rows={3}
           style={textareaStyle}
         />
+
+        <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <FieldLabel>Body Text</FieldLabel>
+            <button
+              type="button"
+              onClick={onResetBody}
+              style={{ background: "transparent", border: "none", color: "var(--ink-soft)", fontSize: 12, cursor: "pointer" }}
+            >
+              Reset to template
+            </button>
+          </div>
+        </div>
+        <textarea
+          value={bodyValue}
+          onChange={(e) => onBodyChange(e.target.value)}
+          rows={14}
+          style={{ ...textareaStyle, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.5 }}
+        />
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.5 }}>
+          Edit any section freely. Section headers (lines starting with I. / II. / A., or all-uppercase
+          titles) render bold in the PDF. The signature block is added automatically at the end — don&apos;t
+          include it here.
+        </div>
 
         <button
           type="submit"
