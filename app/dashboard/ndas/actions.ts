@@ -23,6 +23,7 @@ const ndaSchema = z.object({
   survival_years: z.coerce.number().int().min(0).max(99).default(2),
   governing_law: z.string().min(1).default("California"),
   additional_clauses: z.string().optional().nullable(),
+  body_text: z.string().optional().nullable(),
 });
 
 export async function createNda(input: z.infer<typeof ndaSchema>) {
@@ -48,6 +49,7 @@ export async function createNda(input: z.infer<typeof ndaSchema>) {
       survivalYears: parsed.data.survival_years,
       governingLaw: parsed.data.governing_law.trim() || "California",
       additionalClauses: parsed.data.additional_clauses?.trim() || null,
+      bodyText: parsed.data.body_text?.trim() || null,
       createdBy: session.member.id,
     })
     .returning();
@@ -89,6 +91,7 @@ export async function updateNda(id: string, input: z.infer<typeof ndaSchema>) {
       survivalYears: parsed.data.survival_years,
       governingLaw: parsed.data.governing_law.trim() || "California",
       additionalClauses: parsed.data.additional_clauses?.trim() || null,
+      bodyText: parsed.data.body_text?.trim() || null,
       updatedAt: new Date(),
     })
     .where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)))
