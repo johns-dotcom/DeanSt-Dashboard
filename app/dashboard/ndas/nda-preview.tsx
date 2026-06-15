@@ -50,6 +50,7 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
             style={{
               marginBottom: 12,
               textAlign: "justify",
+              whiteSpace: "pre-wrap",
               marginLeft: isSubsection(b.header) ? 16 : 0,
             }}
           >
