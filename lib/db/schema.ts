@@ -181,9 +181,27 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// First-class client entity. The canonical per-workspace client list that
+// powers the Clients section. Document folders/files link to it via clientId.
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  workspaceSlugUnique: unique("clients_workspace_slug_unique").on(t.workspaceId, t.slug),
+  workspaceNameUnique: unique("clients_workspace_name_unique").on(t.workspaceId, t.name),
+}));
+
 export const documents = pgTable("documents", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  // clientId is the source of truth; `client` text is a denormalized copy of
+  // the client's name kept in sync for display/back-compat.
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
   client: text("client").notNull(),
   category: text("category").notNull(),
   subcategory: text("subcategory"),
@@ -200,6 +218,9 @@ export const documents = pgTable("documents", {
 export const documentFolders = pgTable("document_folders", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  // clientId is the source of truth; `client` text is a denormalized copy of
+  // the client's name kept in sync for display/back-compat.
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
   client: text("client").notNull(),
   name: text("name").notNull(),
   // Self-referential parent for arbitrary nesting. NULL = top-level folder
@@ -306,6 +327,7 @@ export type Invoice = typeof invoices.$inferSelect;
 export type Deal = typeof deals.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
+export type Client = typeof clients.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentFolder = typeof documentFolders.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;

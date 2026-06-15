@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { documents, documentFolders } from "@/lib/db/schema";
+import { documents, documentFolders, clients } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { deleteObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
@@ -34,7 +34,7 @@ export async function deleteDocument(id: string) {
     entityLabel: `${doc.fileName} · ${doc.client}/${doc.category}`,
   });
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -75,7 +75,7 @@ export async function renameDocument(input: z.infer<typeof renameDocInput>) {
     entityLabel: `Renamed · ${doc.fileName} → ${newName}`,
   });
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -93,7 +93,7 @@ export async function getDownloadUrl(id: string) {
 /* ─────────────── Folder tree ─────────────── */
 
 const createFolderInput = z.object({
-  client: z.string().min(1, "Client is required"),
+  clientId: z.string().uuid(),
   name: z.string().min(1, "Folder name is required").max(80),
   parentId: z.string().uuid().nullable().optional(),
 });
@@ -104,9 +104,9 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
 
   const session = await requireSession();
   const name = parsed.data.name.trim();
-  let client = parsed.data.client.trim();
   const parentId = parsed.data.parentId ?? null;
 
+  let clientId = parsed.data.clientId;
   if (parentId) {
     const [parent] = await db
       .select()
@@ -114,14 +114,21 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
       .where(and(eq(documentFolders.id, parentId), eq(documentFolders.workspaceId, session.workspace.id)))
       .limit(1);
     if (!parent) return { error: "Parent folder not found" };
-    client = parent.client; // children always inherit the parent's client
+    clientId = parent.clientId; // children always inherit the parent's client
   }
+
+  const [client] = await db
+    .select({ id: clients.id, name: clients.name })
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.workspaceId, session.workspace.id)))
+    .limit(1);
+  if (!client) return { error: "Client not found" };
 
   // Dedup + ordering computed in JS so NULL parents compare cleanly.
   const siblings = await db
     .select({ name: documentFolders.name, parentId: documentFolders.parentId })
     .from(documentFolders)
-    .where(and(eq(documentFolders.workspaceId, session.workspace.id), eq(documentFolders.client, client)));
+    .where(and(eq(documentFolders.workspaceId, session.workspace.id), eq(documentFolders.clientId, client.id)));
   const sameLevel = siblings.filter((s) => (s.parentId ?? null) === parentId);
   if (sameLevel.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
     return { error: `"${name}" already exists here` };
@@ -129,7 +136,8 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
 
   await db.insert(documentFolders).values({
     workspaceId: session.workspace.id,
-    client,
+    clientId: client.id,
+    client: client.name,
     name,
     parentId,
     sortOrder: sameLevel.length + 1,
@@ -142,10 +150,10 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
     actorMemberId: session.member.id,
     actorName: session.member.displayName,
     entityType: "folder",
-    entityLabel: `Created folder · ${client}/${name}`,
+    entityLabel: `Created folder · ${client.name}/${name}`,
   });
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -184,7 +192,7 @@ export async function renameDocumentFolder(input: z.infer<typeof renameInput>) {
     entityLabel: `Renamed folder · ${folder.client}/${folder.name} → ${newName}`,
   });
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -223,7 +231,7 @@ export async function deleteDocumentFolder(id: string) {
     entityLabel: `Removed folder · ${folder.client}/${folder.name}`,
   });
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -244,6 +252,7 @@ export async function moveDocument(input: z.infer<typeof moveDocInput>) {
     .limit(1);
   if (!doc) return { error: "Document not found" };
 
+  let clientId = doc.clientId;
   let client = doc.client;
   let subcategory: string | null = null;
   if (parsed.data.folderId) {
@@ -253,16 +262,17 @@ export async function moveDocument(input: z.infer<typeof moveDocInput>) {
       .where(and(eq(documentFolders.id, parsed.data.folderId), eq(documentFolders.workspaceId, session.workspace.id)))
       .limit(1);
     if (!target) return { error: "Target folder not found" };
+    clientId = target.clientId;
     client = target.client;
     subcategory = target.name;
   }
 
   await db
     .update(documents)
-    .set({ folderId: parsed.data.folderId, client, subcategory, updatedAt: new Date() })
+    .set({ folderId: parsed.data.folderId, clientId, client, subcategory, updatedAt: new Date() })
     .where(eq(documents.id, doc.id));
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
@@ -289,7 +299,7 @@ export async function moveFolder(input: z.infer<typeof moveFolderInput>) {
   if (parentId) {
     const target = all.find((f) => f.id === parentId);
     if (!target) return { error: "Target folder not found" };
-    if (target.client !== folder.client) return { error: "Can't move a folder to a different client" };
+    if (target.clientId !== folder.clientId) return { error: "Can't move a folder to a different client" };
     // Cycle guard: target must not be a descendant of the folder being moved.
     let cur: typeof target | undefined = target;
     while (cur) {
@@ -303,7 +313,7 @@ export async function moveFolder(input: z.infer<typeof moveFolderInput>) {
     .set({ parentId, updatedAt: new Date() })
     .where(and(eq(documentFolders.id, folder.id), eq(documentFolders.workspaceId, session.workspace.id)));
 
-  revalidatePath("/dashboard/documents");
+  revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
 }
 
