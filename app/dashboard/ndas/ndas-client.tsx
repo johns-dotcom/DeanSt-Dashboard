@@ -386,27 +386,8 @@ function NdaFormPanel({
           </div>
         </div>
 
-        <FieldLabel>Disclose to (recipient contact)</FieldLabel>
-        <input
-          value={draft.disclosingToName}
-          onChange={(e) => setDraft((p) => ({ ...p, disclosingToName: e.target.value }))}
-          placeholder="Defaults to signatory name"
-          style={inputStyle}
-        />
-
         <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
           <Eyebrow size={9}>Terms</Eyebrow>
-        </div>
-
-        <FieldLabel>Purpose of disclosure</FieldLabel>
-        <textarea
-          value={draft.purpose}
-          onChange={(e) => setDraft((p) => ({ ...p, purpose: e.target.value }))}
-          rows={3}
-          style={textareaStyle}
-        />
-        <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-          Completes: “…could assist [Owner] with ___.”
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 10 }}>
