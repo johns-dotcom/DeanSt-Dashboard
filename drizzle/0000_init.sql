@@ -1,12 +1,39 @@
-CREATE TYPE "public"."contact_category" AS ENUM('legal', 'publicist', 'label_rep', 'glam', 'management', 'venue_promoter', 'other');--> statement-breakpoint
-CREATE TYPE "public"."deal_status" AS ENUM('active', 'closed', 'negotiating');--> statement-breakpoint
-CREATE TYPE "public"."deal_type" AS ENUM('recording', 'brand');--> statement-breakpoint
-CREATE TYPE "public"."invoice_status" AS ENUM('draft', 'pending', 'overdue', 'paid');--> statement-breakpoint
-CREATE TYPE "public"."invoice_type" AS ENUM('invoice', 'reimbursement');--> statement-breakpoint
-CREATE TYPE "public"."linked_entity_type" AS ENUM('invoice', 'deal', 'contact');--> statement-breakpoint
-CREATE TYPE "public"."role" AS ENUM('admin', 'member', 'view_only');--> statement-breakpoint
-CREATE TYPE "public"."task_priority" AS ENUM('high', 'medium', 'low');--> statement-breakpoint
-CREATE TYPE "public"."task_status" AS ENUM('open', 'done');--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."contact_category" AS ENUM('legal', 'publicist', 'label_rep', 'glam', 'management', 'venue_promoter', 'other');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."deal_status" AS ENUM('active', 'closed', 'negotiating');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."deal_type" AS ENUM('recording', 'brand');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."invoice_status" AS ENUM('draft', 'pending', 'overdue', 'paid');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."invoice_type" AS ENUM('invoice', 'reimbursement');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."linked_entity_type" AS ENUM('invoice', 'deal', 'contact');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."role" AS ENUM('admin', 'member', 'view_only');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."task_priority" AS ENUM('high', 'medium', 'low');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."task_status" AS ENUM('open', 'done');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "accounts" (
 	"userId" text NOT NULL,
 	"type" text NOT NULL,
