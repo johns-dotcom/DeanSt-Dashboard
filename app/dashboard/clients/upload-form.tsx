@@ -19,19 +19,16 @@ function formatBytes(n: number) {
 }
 
 export function UploadForm({
-  workspaceId,
-  client,
+  clientId,
   folderId,
   destinationLabel,
   onDone,
 }: {
-  workspaceId: string;
-  client: string;
+  clientId: string;
   folderId: string | null;
   destinationLabel: string;
   onDone: () => void;
 }) {
-  void workspaceId; // path is derived server-side
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState("Other");
@@ -56,7 +53,7 @@ export function UploadForm({
   async function uploadOne(file: File) {
     const form = new FormData();
     form.append("file", file);
-    form.append("client", client);
+    form.append("client_id", clientId);
     form.append("category", category);
     if (folderId) form.append("folder_id", folderId);
 
@@ -75,24 +72,17 @@ export function UploadForm({
     let ok = 0;
     const failures: string[] = [];
     for (const file of files) {
-      try {
-        await uploadOne(file);
-        ok += 1;
-      } catch (err) {
-        failures.push(`${file.name}: ${err instanceof Error ? err.message : "failed"}`);
-      }
+      try { await uploadOne(file); ok += 1; }
+      catch (err) { failures.push(`${file.name}: ${err instanceof Error ? err.message : "failed"}`); }
     }
     setBusy(false);
 
     if (ok > 0) toast.success(`Uploaded ${ok} file${ok === 1 ? "" : "s"}`);
     if (failures.length > 0) toast.error(failures.join("\n"));
-
+    router.refresh();
     if (failures.length === 0) {
-      router.refresh();
       onDone();
     } else {
-      // Keep only the files that failed so the user can retry.
-      router.refresh();
       const failedNames = new Set(failures.map((f) => f.split(":")[0]));
       setFiles((prev) => prev.filter((f) => failedNames.has(f.name)));
     }

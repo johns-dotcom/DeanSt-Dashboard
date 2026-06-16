@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { documents, documentFolders } from "@/lib/db/schema";
+import { documents, documentFolders, clients } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { putObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
@@ -16,17 +16,19 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData();
   const file = form.get("file");
-  const clientField = form.get("client");
+  const clientIdField = form.get("client_id");
   const categoryField = form.get("category");
   const folderIdField = form.get("folder_id");
 
-  if (!(file instanceof Blob) || typeof clientField !== "string") {
-    return NextResponse.json({ error: "Missing file or client" }, { status: 400 });
+  if (!(file instanceof Blob)) {
+    return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
   const category = typeof categoryField === "string" && categoryField.trim() ? categoryField.trim() : "Other";
 
-  // If a folder is given, it's the source of truth for client + subcategory.
-  let client = clientField;
+  // Resolve the destination client. A folder is the source of truth for
+  // clientId + subcategory; otherwise client_id must be provided directly.
+  let clientId: string | null = null;
+  let client = "";
   let subcategory: string | null = null;
   let folderId: string | null = null;
   if (typeof folderIdField === "string" && folderIdField) {
@@ -37,8 +39,20 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 400 });
     folderId = folder.id;
+    clientId = folder.clientId;
     client = folder.client;
     subcategory = folder.name;
+  } else if (typeof clientIdField === "string" && clientIdField) {
+    const [c] = await db
+      .select()
+      .from(clients)
+      .where(and(eq(clients.id, clientIdField), eq(clients.workspaceId, session.workspace.id)))
+      .limit(1);
+    if (!c) return NextResponse.json({ error: "Client not found" }, { status: 400 });
+    clientId = c.id;
+    client = c.name;
+  } else {
+    return NextResponse.json({ error: "Missing client" }, { status: 400 });
   }
 
   const fileName = file instanceof File ? file.name : "file";
@@ -54,6 +68,7 @@ export async function POST(req: NextRequest) {
     .insert(documents)
     .values({
       workspaceId: session.workspace.id,
+      clientId: clientId!,
       client,
       category,
       subcategory,
