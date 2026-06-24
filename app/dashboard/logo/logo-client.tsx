@@ -405,7 +405,9 @@ function downloadSvg(variant: Variant) {
   downloadBlob(blob, `deanst_${variant.id}.svg`);
 }
 
-async function svgToPngBlob(svg: string, width: number): Promise<Blob> {
+type RasterFormat = "png" | "jpeg";
+
+async function svgToRasterBlob(svg: string, width: number, format: RasterFormat): Promise<Blob> {
   const match = svg.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
   const vw = match ? Number(match[1]) : 720;
   const vh = match ? Number(match[2]) : 520;
@@ -426,32 +428,50 @@ async function svgToPngBlob(svg: string, width: number): Promise<Blob> {
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas not supported");
+    // JPEG has no alpha channel — paint white first so transparent marks (and
+    // any letterboxing around the SVG) come out white instead of black. Opaque
+    // variants embed their own full-canvas background, which covers this.
+    if (format === "jpeg") {
+      ctx.fillStyle = WHITE;
+      ctx.fillRect(0, 0, width, height);
+    }
     ctx.drawImage(img, 0, 0, width, height);
-    const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!out) throw new Error("PNG encoding failed");
+    const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, mime, format === "jpeg" ? 0.92 : undefined)
+    );
+    if (!out) throw new Error(`${format.toUpperCase()} encoding failed`);
     return out;
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
-async function downloadPng(variant: Variant, width: number) {
-  const blob = await svgToPngBlob(variant.svg, width);
-  downloadBlob(blob, `deanst_${variant.id}_${width}.png`);
+async function downloadRaster(variant: Variant, width: number, format: RasterFormat) {
+  const blob = await svgToRasterBlob(variant.svg, width, format);
+  const ext = format === "jpeg" ? "jpg" : "png";
+  downloadBlob(blob, `deanst_${variant.id}_${width}.${ext}`);
 }
 
 async function downloadBrandKit() {
   const zip = new JSZip();
   const svgDir = zip.folder("svg");
   const pngDir = zip.folder("png");
-  if (!svgDir || !pngDir) throw new Error("Could not initialize archive");
+  const jpgDir = zip.folder("jpg");
+  if (!svgDir || !pngDir || !jpgDir) throw new Error("Could not initialize archive");
 
   for (const v of VARIANTS) {
     svgDir.file(`${v.id}.svg`, v.svg);
     const widthPick = v.pngWidths[Math.max(0, v.pngWidths.length - 2)];
     try {
-      const png = await svgToPngBlob(v.svg, widthPick);
+      const png = await svgToRasterBlob(v.svg, widthPick, "png");
       pngDir.file(`${v.id}_${widthPick}.png`, png);
+    } catch {
+      // skip a single failure rather than abort the whole bundle
+    }
+    try {
+      const jpg = await svgToRasterBlob(v.svg, widthPick, "jpeg");
+      jpgDir.file(`${v.id}_${widthPick}.jpg`, jpg);
     } catch {
       // skip a single failure rather than abort the whole bundle
     }
@@ -462,7 +482,8 @@ async function downloadBrandKit() {
     "===================",
     "",
     "SVG: scalable, preferred for web and print.",
-    "PNG: rasterized at standard widths for documents and decks.",
+    "PNG: rasterized at standard widths, transparent where noted.",
+    "JPG: same widths on a white background (no transparency).",
     "",
     "PALETTE",
     ...PALETTE.map((p) => `  ${p.name.padEnd(12)} ${p.hex}   ${p.usage}`),
@@ -660,16 +681,17 @@ function SectionHeader({ numeral, title, subtitle, count }: { numeral: string; t
 
 function LogoCard({ variant }: { variant: Variant }) {
   const [hovered, setHovered] = useState(false);
-  const [pngBusy, setPngBusy] = useState<number | null>(null);
+  const [format, setFormat] = useState<RasterFormat>("png");
+  const [busy, setBusy] = useState<number | null>(null);
 
-  async function handlePng(w: number) {
-    setPngBusy(w);
+  async function handleRaster(w: number) {
+    setBusy(w);
     try {
-      await downloadPng(variant, w);
+      await downloadRaster(variant, w, format);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not export PNG");
+      toast.error(err instanceof Error ? err.message : "Could not export image");
     } finally {
-      setPngBusy(null);
+      setBusy(null);
     }
   }
 
@@ -718,24 +740,56 @@ function LogoCard({ variant }: { variant: Variant }) {
             {variant.description}
           </div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           <button onClick={() => downloadSvg(variant)} style={chipPrimary} title="Download SVG">
             <Download className="h-3 w-3" /> SVG
           </button>
+          <FormatToggle value={format} onChange={setFormat} />
           {variant.pngWidths.map((w) => (
             <button
               key={w}
-              onClick={() => handlePng(w)}
-              disabled={pngBusy === w}
-              style={{ ...chip, opacity: pngBusy === w ? 0.5 : 1 }}
-              title={`PNG @ ${w}px wide`}
+              onClick={() => handleRaster(w)}
+              disabled={busy === w}
+              style={{ ...chip, opacity: busy === w ? 0.5 : 1 }}
+              title={`Download ${format === "jpeg" ? "JPG" : "PNG"} · ${w}px wide`}
             >
-              {pngBusy === w ? "…" : `${w}`}
+              {busy === w ? "…" : `${w}`}
             </button>
           ))}
         </div>
       </div>
     </article>
+  );
+}
+
+function FormatToggle({ value, onChange }: { value: RasterFormat; onChange: (f: RasterFormat) => void }) {
+  const opts: { v: RasterFormat; label: string }[] = [
+    { v: "png", label: "PNG" },
+    { v: "jpeg", label: "JPG" },
+  ];
+  return (
+    <span style={{ display: "inline-flex", border: "1px solid var(--hair)", borderRadius: 5, overflow: "hidden" }}>
+      {opts.map((o) => (
+        <button
+          key={o.v}
+          onClick={() => onChange(o.v)}
+          title={`Export as ${o.label}`}
+          style={{
+            padding: "5px 8px",
+            fontSize: 10.5,
+            fontWeight: 600,
+            fontFamily: "Arial, sans-serif",
+            letterSpacing: "0.04em",
+            border: "none",
+            cursor: "pointer",
+            background: value === o.v ? "var(--cream-deep)" : "var(--paper)",
+            color: value === o.v ? "var(--ink)" : "var(--ink-faint)",
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </span>
   );
 }
 
