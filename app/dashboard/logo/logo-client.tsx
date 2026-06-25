@@ -450,13 +450,11 @@ async function downloadRaster(variant: Variant, width: number, format: RasterFor
 
 async function downloadBrandKit() {
   const zip = new JSZip();
-  const svgDir = zip.folder("svg");
   const pngDir = zip.folder("png");
   const jpgDir = zip.folder("jpg");
-  if (!svgDir || !pngDir || !jpgDir) throw new Error("Could not initialize archive");
+  if (!pngDir || !jpgDir) throw new Error("Could not initialize archive");
 
   for (const v of VARIANTS) {
-    svgDir.file(`${v.id}.svg`, v.svg);
     const widthPick = v.pngWidths[Math.max(0, v.pngWidths.length - 2)];
     try {
       const png = await svgToRasterBlob(v.svg, widthPick, "png");
@@ -476,7 +474,6 @@ async function downloadBrandKit() {
     "DEAN ST · BRAND KIT",
     "===================",
     "",
-    "SVG: scalable, preferred for web and print.",
     "PNG: rasterized at standard widths, transparent where noted.",
     "JPG: same widths on a white background (no transparency).",
     "",
