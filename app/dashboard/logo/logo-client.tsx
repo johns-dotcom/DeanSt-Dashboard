@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Copy, Check, Archive } from "lucide-react";
+import { Copy, Check, Archive } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { Eyebrow } from "@/components/brand/eyebrow";
@@ -400,11 +400,6 @@ function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
-function downloadSvg(variant: Variant) {
-  const blob = new Blob([variant.svg], { type: "image/svg+xml" });
-  downloadBlob(blob, `deanst_${variant.id}.svg`);
-}
-
 type RasterFormat = "png" | "jpeg";
 
 async function svgToRasterBlob(svg: string, width: number, format: RasterFormat): Promise<Blob> {
@@ -741,9 +736,6 @@ function LogoCard({ variant }: { variant: Variant }) {
           </div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          <button onClick={() => downloadSvg(variant)} style={chipPrimary} title="Download SVG">
-            <Download className="h-3 w-3" /> SVG
-          </button>
           <FormatToggle value={format} onChange={setFormat} />
           {variant.pngWidths.map((w) => (
             <button
@@ -912,11 +904,3 @@ const chip: React.CSSProperties = {
   justifyContent: "center",
 };
 
-const chipPrimary: React.CSSProperties = {
-  ...chip,
-  background: "var(--ink)",
-  color: "var(--paper)",
-  borderColor: "var(--ink)",
-  fontWeight: 600,
-  padding: "5px 11px",
-};
