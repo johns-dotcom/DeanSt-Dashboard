@@ -1,4 +1,4 @@
-import { buildNdaBody, parseNdaBody } from "@/lib/nda-template";
+import { parseNdaBody } from "@/lib/nda-template";
 
 export interface NdaDraft {
   recipientName: string;
@@ -19,8 +19,7 @@ export interface NdaDraft {
 
 const isSubsection = (header: string | null) => Boolean(header && /^[A-Z]\.\s/.test(header));
 
-export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
-  const body = draft.bodyText.trim() ? draft.bodyText : buildNdaBody(draft);
+export function NdaPreviewPanel({ body, signatureLines }: { body: string; signatureLines: string[] }) {
   const blocks = parseNdaBody(body);
 
   return (
@@ -61,17 +60,16 @@ export function NdaPreviewPanel({ draft }: { draft: NdaDraft }) {
         );
       })}
 
-      <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        <div>
-          <p style={{ fontWeight: 700, marginBottom: 8 }}>OWNER:</p>
-          <p style={{ marginBottom: 12 }}>By: ______________________</p>
-          <p>Date: _____________________</p>
-        </div>
-        <div>
-          <p style={{ fontWeight: 700, marginBottom: 8 }}>RECIPIENT:</p>
-          <p style={{ marginBottom: 12 }}>By: ______________________</p>
-          <p>Date: _____________________</p>
-        </div>
+      <div style={{ marginTop: 28 }}>
+        {signatureLines.map((line, i) =>
+          line ? (
+            <p key={i} style={{ margin: 0, lineHeight: 1.9, fontWeight: /:$/.test(line) ? 700 : 400 }}>
+              {line}
+            </p>
+          ) : (
+            <div key={i} style={{ height: 10 }} />
+          )
+        )}
       </div>
     </section>
   );

@@ -246,6 +246,8 @@ export const invoiceClientPages = pgTable("invoice_client_pages", {
 export const ndas = pgTable("ndas", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  // Which client/template subpage this NDA belongs to (e.g. "dean-st", "grimes").
+  clientSlug: text("client_slug").notNull().default("dean-st"),
   recipientName: text("recipient_name").notNull(),
   recipientAddress: text("recipient_address"),
   effectiveDate: date("effective_date"),

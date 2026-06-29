@@ -71,6 +71,13 @@
       "when": 1779763200000,
       "tag": "0009_clients_entity",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779849600000,
+      "tag": "0010_nda_client_slug",
+      "breakpoints": true
     }
   ]
 }

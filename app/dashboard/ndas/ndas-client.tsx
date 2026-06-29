@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { Eye, Pencil, Download, Trash2, Plus, X, Paperclip, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
@@ -15,7 +16,7 @@ import { NdaPreviewPanel, type NdaDraft } from "./nda-preview";
 import { NdaFilesPanel } from "./nda-files-panel";
 import { createNda, updateNda, deleteNda, setNdaSigned } from "./actions";
 import { formatDate } from "@/lib/utils";
-import { buildNdaBody } from "@/lib/nda-template";
+import { getNdaClient, NDA_CLIENTS, DEFAULT_NDA_CLIENT_SLUG } from "@/lib/nda-clients";
 import {
   DEFAULT_PURPOSE,
   DEFAULT_GOVERNING_LAW,
@@ -68,14 +69,26 @@ function clampYears(v: string): number {
 
 export function NdasClient({
   ndas,
+  clientSlug,
   defaultOwner,
   fileCounts,
 }: {
   ndas: Nda[];
+  clientSlug: string;
   defaultOwner: { name: string; signatoryName: string; signatoryPosition: string };
   fileCounts: Record<string, number>;
 }) {
-  const initialDraft = useMemo(() => emptyDraft(defaultOwner), [defaultOwner]);
+  const client = getNdaClient(clientSlug);
+  // A client with a fixed owner (e.g. Grimes) overrides the workspace default.
+  const owner = useMemo(
+    () => ({
+      name: client.owner?.name ?? defaultOwner.name,
+      signatoryName: client.owner?.signatoryName ?? defaultOwner.signatoryName,
+      signatoryPosition: client.owner?.signatoryPosition ?? defaultOwner.signatoryPosition,
+    }),
+    [client, defaultOwner]
+  );
+  const initialDraft = useMemo(() => emptyDraft(owner), [owner]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<NdaDraft>(initialDraft);
   // Until the body is hand-edited it tracks the template live as fields change.
@@ -83,13 +96,17 @@ export function NdasClient({
   const [filesFor, setFilesFor] = useState<Nda | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Reset the draft when switching client subpages.
+  useEffect(() => { setEditingId(null); setDraft(initialDraft); setBodyDirty(false); }, [clientSlug, initialDraft]);
+
   const editing = useMemo(
     () => (editingId ? ndas.find((n) => n.id === editingId) ?? null : null),
     [editingId, ndas]
   );
 
   // The body shown/saved: hand-edited text once dirty, else the live template.
-  const effectiveBody = bodyDirty ? draft.bodyText : buildNdaBody(draft);
+  const effectiveBody = bodyDirty ? draft.bodyText : client.buildBody(draft);
+  const signatureLines = client.signatureLines({ recipientName: draft.recipientName });
 
   function startNew() { setEditingId(null); setDraft(initialDraft); setBodyDirty(false); }
   function startEdit(n: Nda) { setEditingId(n.id); setDraft(toDraft(n)); setBodyDirty(Boolean(n.bodyText)); }
@@ -113,6 +130,7 @@ export function NdasClient({
         governing_law: draft.governingLaw.trim() || DEFAULT_GOVERNING_LAW,
         additional_clauses: draft.additionalClauses.trim() || null,
         body_text: effectiveBody,
+        client_slug: client.slug,
       };
       const r = editing ? await updateNda(editing.id, payload) : await createNda(payload);
       if ("error" in r && r.error) { toast.error(r.error); return; }
@@ -132,9 +150,10 @@ export function NdasClient({
 
   return (
     <div style={{ padding: "32px 48px 60px", display: "flex", flexDirection: "column", gap: 22 }}>
+      <NdaClientTabs activeSlug={client.slug} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Eyebrow size={10} spacing={0.36}>№ 05 · Counsel</Eyebrow>
-        <Eyebrow size={10} spacing={0.32}>{editing ? `Editing NDA · ${editing.recipientName}` : "Drafting new NDA"}</Eyebrow>
+        <Eyebrow size={10} spacing={0.32}>{editing ? `Editing NDA · ${editing.recipientName}` : `Drafting new NDA · ${client.name}`}</Eyebrow>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) minmax(0, 1.45fr)", gap: 22 }}>
@@ -148,8 +167,10 @@ export function NdasClient({
           onCancel={startNew}
           editing={Boolean(editing)}
           pending={pending}
+          showOwnerFields={client.showOwnerFields}
+          showTerms={client.showTerms}
         />
-        <NdaPreviewPanel draft={draft} />
+        <NdaPreviewPanel body={effectiveBody} signatureLines={signatureLines} />
       </div>
 
       <section style={{ background: "var(--paper)", border: "1px solid var(--hair)", borderRadius: 10, overflow: "hidden" }}>
@@ -265,6 +286,36 @@ export function NdasClient({
   );
 }
 
+function NdaClientTabs({ activeSlug }: { activeSlug: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      {NDA_CLIENTS.map((c) => {
+        const href = c.slug === DEFAULT_NDA_CLIENT_SLUG ? "/dashboard/ndas" : `/dashboard/ndas/c/${c.slug}`;
+        const active = c.slug === activeSlug;
+        return (
+          <Link
+            key={c.slug}
+            href={href}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: active ? 600 : 500,
+              fontFamily: "Arial, sans-serif",
+              textDecoration: "none",
+              background: active ? "var(--ink)" : "var(--cream-light)",
+              color: active ? "var(--paper)" : "var(--ink-soft)",
+              border: "1px solid var(--hair)",
+            }}
+          >
+            {c.name}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function NdaFormPanel({
   draft,
   setDraft,
@@ -275,6 +326,8 @@ function NdaFormPanel({
   onCancel,
   editing,
   pending,
+  showOwnerFields,
+  showTerms,
 }: {
   draft: NdaDraft;
   setDraft: React.Dispatch<React.SetStateAction<NdaDraft>>;
@@ -285,6 +338,8 @@ function NdaFormPanel({
   onCancel: () => void;
   editing: boolean;
   pending: boolean;
+  showOwnerFields: boolean;
+  showTerms: boolean;
 }) {
   return (
     <section
@@ -345,93 +400,101 @@ function NdaFormPanel({
           style={inputStyle}
         />
 
-        <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
-          <Eyebrow size={9}>Owner side</Eyebrow>
-        </div>
+        {showOwnerFields ? (
+          <>
+            <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
+              <Eyebrow size={9}>Owner side</Eyebrow>
+            </div>
 
-        <FieldLabel>Owner name</FieldLabel>
-        <input
-          value={draft.ownerName}
-          onChange={(e) => setDraft((p) => ({ ...p, ownerName: e.target.value }))}
-          style={inputStyle}
-        />
-
-        <FieldLabel>Owner address</FieldLabel>
-        <textarea
-          value={draft.ownerAddress}
-          onChange={(e) => setDraft((p) => ({ ...p, ownerAddress: e.target.value }))}
-          placeholder="Optional"
-          rows={2}
-          style={textareaStyle}
-        />
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <FieldLabel>Signatory name</FieldLabel>
+            <FieldLabel>Owner name</FieldLabel>
             <input
-              value={draft.ownerSignatoryName}
-              onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryName: e.target.value }))}
-              placeholder="John Skead"
+              value={draft.ownerName}
+              onChange={(e) => setDraft((p) => ({ ...p, ownerName: e.target.value }))}
               style={inputStyle}
             />
-          </div>
-          <div>
-            <FieldLabel>Position</FieldLabel>
-            <input
-              value={draft.ownerSignatoryPosition}
-              onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryPosition: e.target.value }))}
-              placeholder="Founder"
-              style={inputStyle}
-            />
-          </div>
-        </div>
 
-        <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
-          <Eyebrow size={9}>Terms</Eyebrow>
-        </div>
+            <FieldLabel>Owner address</FieldLabel>
+            <textarea
+              value={draft.ownerAddress}
+              onChange={(e) => setDraft((p) => ({ ...p, ownerAddress: e.target.value }))}
+              placeholder="Optional"
+              rows={2}
+              style={textareaStyle}
+            />
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 10 }}>
-          <div>
-            <FieldLabel>Term (years)</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              value={draft.termYears}
-              onChange={(e) => setDraft((p) => ({ ...p, termYears: clampYears(e.target.value) }))}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <FieldLabel>Survival (years)</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              value={draft.survivalYears}
-              onChange={(e) => setDraft((p) => ({ ...p, survivalYears: clampYears(e.target.value) }))}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <FieldLabel>Governing law (state)</FieldLabel>
-            <input
-              value={draft.governingLaw}
-              onChange={(e) => setDraft((p) => ({ ...p, governingLaw: e.target.value }))}
-              placeholder="California"
-              style={inputStyle}
-            />
-          </div>
-        </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <FieldLabel>Signatory name</FieldLabel>
+                <input
+                  value={draft.ownerSignatoryName}
+                  onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryName: e.target.value }))}
+                  placeholder="John Skead"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Position</FieldLabel>
+                <input
+                  value={draft.ownerSignatoryPosition}
+                  onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryPosition: e.target.value }))}
+                  placeholder="Founder"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
 
-        <FieldLabel>Additional clauses</FieldLabel>
-        <textarea
-          value={draft.additionalClauses}
-          onChange={(e) => setDraft((p) => ({ ...p, additionalClauses: e.target.value }))}
-          placeholder="Optional — appended as a numbered section before the signatures"
-          rows={3}
-          style={textareaStyle}
-        />
+        {showTerms ? (
+          <>
+            <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
+              <Eyebrow size={9}>Terms</Eyebrow>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 10 }}>
+              <div>
+                <FieldLabel>Term (years)</FieldLabel>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={draft.termYears}
+                  onChange={(e) => setDraft((p) => ({ ...p, termYears: clampYears(e.target.value) }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Survival (years)</FieldLabel>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={draft.survivalYears}
+                  onChange={(e) => setDraft((p) => ({ ...p, survivalYears: clampYears(e.target.value) }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Governing law (state)</FieldLabel>
+                <input
+                  value={draft.governingLaw}
+                  onChange={(e) => setDraft((p) => ({ ...p, governingLaw: e.target.value }))}
+                  placeholder="California"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <FieldLabel>Additional clauses</FieldLabel>
+            <textarea
+              value={draft.additionalClauses}
+              onChange={(e) => setDraft((p) => ({ ...p, additionalClauses: e.target.value }))}
+              placeholder="Optional — appended as a numbered section before the signatures"
+              rows={3}
+              style={textareaStyle}
+            />
+          </>
+        ) : null}
 
         <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 12, marginTop: 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

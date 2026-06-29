@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Nda } from "@/lib/db/schema";
-import { buildNdaBody, parseNdaBody, type NdaTemplateFields } from "@/lib/nda-template";
+import { parseNdaBody, type NdaTemplateFields } from "@/lib/nda-template";
+import { getNdaClient } from "@/lib/nda-clients";
 
 const styles = StyleSheet.create({
   page: { padding: 64, fontSize: 11, fontFamily: "Times-Roman", color: "#1a1a1a", lineHeight: 1.5 },
@@ -8,8 +9,9 @@ const styles = StyleSheet.create({
   paragraph: { marginBottom: 10, textAlign: "justify" },
   indent: { marginLeft: 14 },
   bold: { fontFamily: "Times-Bold" },
-  signatureBlock: { marginTop: 16 },
-  signatureLine: { marginTop: 8, marginBottom: 14 },
+  signatureBlock: { marginTop: 20 },
+  signatureLine: { lineHeight: 1.8 },
+  signatureGap: { height: 10 },
 });
 
 function ndaToFields(nda: Nda): NdaTemplateFields {
@@ -33,8 +35,10 @@ function ndaToFields(nda: Nda): NdaTemplateFields {
 const isSubsection = (header: string | null) => Boolean(header && /^[A-Z]\.\s/.test(header));
 
 export function NdaPDF({ nda }: { nda: Nda }) {
-  const body = nda.bodyText?.trim() ? nda.bodyText : buildNdaBody(ndaToFields(nda));
+  const client = getNdaClient(nda.clientSlug);
+  const body = nda.bodyText?.trim() ? nda.bodyText : client.buildBody(ndaToFields(nda));
   const blocks = parseNdaBody(body);
+  const signatureLines = client.signatureLines({ recipientName: nda.recipientName ?? "" });
 
   return (
     <Document>
@@ -54,14 +58,13 @@ export function NdaPDF({ nda }: { nda: Nda }) {
         })}
 
         <View style={styles.signatureBlock} wrap={false}>
-          <Text style={styles.bold}>OWNER:</Text>
-          <View style={styles.signatureLine}><Text>By: ______________________</Text></View>
-          <View style={styles.signatureLine}><Text>Date: _____________________</Text></View>
-        </View>
-        <View style={styles.signatureBlock} wrap={false}>
-          <Text style={styles.bold}>RECIPIENT:</Text>
-          <View style={styles.signatureLine}><Text>By: ______________________</Text></View>
-          <View style={styles.signatureLine}><Text>Date: _____________________</Text></View>
+          {signatureLines.map((line, i) =>
+            line ? (
+              <Text key={i} style={[styles.signatureLine, /:$/.test(line) ? styles.bold : {}]}>{line}</Text>
+            ) : (
+              <View key={i} style={styles.signatureGap} />
+            )
+          )}
         </View>
       </Page>
     </Document>
