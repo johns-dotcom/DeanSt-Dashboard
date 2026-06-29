@@ -55,6 +55,36 @@ function fmtDate(d?: string | null) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed);
 }
 
+const NAVY = "#1d3c8e";
+const WHITE = "#ffffff";
+
+// The Dean St "site logo" pill, rebuilt with react-pdf box primitives so it
+// renders crisply in the PDF without rasterizing an SVG (which would need a
+// server-side canvas). Mirrors the SignPlate component: navy fill, white
+// keyline, navy outer ring.
+function BrandPlate() {
+  return (
+    <View style={{ alignSelf: "flex-start", backgroundColor: NAVY, borderRadius: 3, padding: 1.5 }}>
+      <View
+        style={{
+          backgroundColor: NAVY,
+          borderWidth: 1.5,
+          borderColor: WHITE,
+          borderRadius: 2.5,
+          paddingTop: 5,
+          paddingBottom: 6,
+          paddingHorizontal: 12,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Text style={{ color: WHITE, fontFamily: "Helvetica-Bold", fontSize: 15, letterSpacing: 0.3 }}>DEAN ST</Text>
+        <Text style={{ color: WHITE, fontFamily: "Helvetica", fontSize: 7, letterSpacing: 0.6, marginLeft: 4, marginBottom: 2, opacity: 0.85 }}>CO</Text>
+      </View>
+    </View>
+  );
+}
+
 export function InvoicePDF({
   invoice,
   workspaceName,
@@ -73,7 +103,8 @@ export function InvoicePDF({
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.brand}>{workspaceName} Media</Text>
+            <BrandPlate />
+            <Text style={[styles.brand, { marginTop: 10 }]}>{workspaceName} Media</Text>
             <Text style={styles.brandSub}>Operations · {paymentTerms}</Text>
           </View>
           <View style={styles.invoiceMeta}>
