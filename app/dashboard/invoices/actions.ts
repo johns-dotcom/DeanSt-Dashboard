@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { invoices, workspaces } from "@/lib/db/schema";
+import { invoices, invoiceReceipts, workspaces, type LineItem } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
@@ -230,4 +230,96 @@ export async function deleteInvoice(id: string) {
 
   revalidatePath("/dashboard/invoices");
   return { ok: true as const };
+}
+
+const combineSchema = z.object({ ids: z.array(z.string().uuid()).min(2, "Select at least two invoices") });
+
+/**
+ * Merge several unsent invoices for the same client into one new invoice:
+ * line items are concatenated, receipts re-pointed to the new invoice, and
+ * the originals deleted — all atomically. The new invoice gets the next
+ * number and starts as a draft so it can be reviewed before sending.
+ */
+export async function combineInvoices(input: z.infer<typeof combineSchema>) {
+  const parsed = combineSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const session = await requireSession();
+  if (session.member.role === "view_only") return { error: "View-only members can't combine invoices" };
+  const wsId = session.workspace.id;
+
+  const rows = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.workspaceId, wsId), inArray(invoices.id, parsed.data.ids)));
+
+  if (rows.length < 2) return { error: "Select at least two invoices to combine" };
+  if (rows.some((r) => r.sent)) return { error: "Sent invoices can't be combined" };
+  if (rows.some((r) => r.client !== rows[0].client)) return { error: "All selected invoices must be for the same client" };
+  if (rows.some((r) => r.type !== rows[0].type)) return { error: "Can't combine invoices and reimbursements together" };
+
+  const client = rows[0].client;
+  const type = rows[0].type;
+  const lineItems: LineItem[] = rows.flatMap((r) => r.lineItems ?? []);
+  // Keep the shared tax rate only if every invoice agrees; otherwise drop to 0
+  // rather than silently applying one invoice's rate to all.
+  const allTax = rows.map((r) => Number(r.taxRate));
+  const taxRate = allTax.every((t) => t === allTax[0]) ? allTax[0] : 0;
+  const { subtotal, total } = computeTotals(lineItems, taxRate);
+  const dueDates = rows.map((r) => r.dueDate).filter((d): d is string => Boolean(d)).sort();
+  const dueDate = dueDates.length ? dueDates[dueDates.length - 1] : null; // latest, so no line's deadline shortens
+  const description = rows.map((r) => r.description?.trim()).find(Boolean) ?? null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  const newId = await db.transaction(async (tx) => {
+    const [ws] = await tx
+      .update(workspaces)
+      .set({ invoiceSeq: sql`${workspaces.invoiceSeq} + 1` })
+      .where(eq(workspaces.id, wsId))
+      .returning({ seq: workspaces.invoiceSeq, prefix: workspaces.invoicePrefix });
+    const number = `${ws.prefix}${String(ws.seq - 1).padStart(4, "0")}`;
+
+    const [created] = await tx
+      .insert(invoices)
+      .values({
+        workspaceId: wsId,
+        invoiceNumber: number,
+        client,
+        type,
+        description,
+        lineItems,
+        subtotal: subtotal.toFixed(2),
+        taxRate: taxRate.toFixed(2),
+        total: total.toFixed(2),
+        issuedDate: today,
+        dueDate,
+        status: "draft",
+      })
+      .returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
+
+    // Move any attached receipts onto the combined invoice, then remove originals.
+    await tx
+      .update(invoiceReceipts)
+      .set({ invoiceId: created.id })
+      .where(and(eq(invoiceReceipts.workspaceId, wsId), inArray(invoiceReceipts.invoiceId, parsed.data.ids)));
+    await tx.delete(invoices).where(and(eq(invoices.workspaceId, wsId), inArray(invoices.id, parsed.data.ids)));
+
+    return { id: created.id, number };
+  });
+
+  await logActivity({
+    action: "invoice.created",
+    workspaceId: wsId,
+    actorUserId: session.user.id,
+    actorMemberId: session.member.id,
+    actorName: session.member.displayName,
+    entityType: "invoice",
+    entityId: newId.id,
+    entityLabel: `${newId.number} · ${client} · combined ${rows.length} invoices`,
+    metadata: { total, combinedFrom: rows.map((r) => r.invoiceNumber) },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/invoices");
+  return { ok: true as const, id: newId.id, number: newId.number };
 }

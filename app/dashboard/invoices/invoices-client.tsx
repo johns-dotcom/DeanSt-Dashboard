@@ -9,7 +9,9 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
-import { deleteInvoice, setInvoiceStatus, setInvoiceSent, setInvoiceType } from "./actions";
+import { deleteInvoice, setInvoiceStatus, setInvoiceSent, setInvoiceType, combineInvoices } from "./actions";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Combine } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -78,13 +80,57 @@ export function InvoicesClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftInvoice>(initialDraft);
   const [receiptsFor, setReceiptsFor] = useState<Invoice | null>(null);
-  const [, startTransition] = useTransition();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pending, startTransition] = useTransition();
 
   // Reset draft when navigating between client tabs
   useEffect(() => {
     setEditingId(null);
     setDraft(initialDraft);
+    setSelected(new Set());
   }, [activeClientSlug, initialDraft]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Only unsent invoices are selectable; dropped IDs (e.g. after a combine) are
+  // ignored. Combining requires 2+ of the same client and type.
+  const selectedInvoices = useMemo(
+    () => invoices.filter((i) => selected.has(i.id) && !i.sent),
+    [invoices, selected]
+  );
+  const combineClient = selectedInvoices[0]?.client;
+  const combineType = selectedInvoices[0]?.type;
+  const sameClient = selectedInvoices.every((i) => i.client === combineClient);
+  const sameType = selectedInvoices.every((i) => i.type === combineType);
+  const canCombine = selectedInvoices.length >= 2 && sameClient && sameType;
+  const combineHint = !sameClient
+    ? "Selected invoices must be for the same client"
+    : !sameType
+    ? "Can't combine invoices with reimbursements"
+    : selectedInvoices.length < 2
+    ? "Select at least two"
+    : "";
+
+  function handleCombine() {
+    if (!canCombine) return;
+    const nums = selectedInvoices.map((i) => i.invoiceNumber).join(", ");
+    if (!confirm(
+      `Combine ${selectedInvoices.length} invoices (${nums}) for ${combineClient} into one new invoice?\n\nTheir line items${combineType === "reimbursement" ? " and receipts" : ""} move to the new invoice and the originals are deleted. This can't be undone.`
+    )) return;
+    startTransition(async () => {
+      const r = await combineInvoices({ ids: selectedInvoices.map((i) => i.id) });
+      if ("error" in r && r.error) { toast.error(r.error); return; }
+      toast.success(`Combined into ${"number" in r ? r.number : "a new invoice"}`);
+      setSelected(new Set());
+      startNew();
+    });
+  }
 
   const editing = useMemo(
     () => (editingId ? invoices.find((i) => i.id === editingId) ?? null : null),
@@ -169,6 +215,43 @@ export function InvoicesClient({
               {invoices.length} on file
             </div>
           </div>
+          {selectedInvoices.length > 0 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                {selectedInvoices.length} selected
+                {!canCombine && combineHint ? ` · ${combineHint}` : ""}
+              </span>
+              <button
+                type="button"
+                onClick={handleCombine}
+                disabled={!canCombine || pending}
+                title={canCombine ? "Combine into one invoice" : combineHint}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 14px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: "Arial, sans-serif",
+                  background: canCombine ? "var(--ink)" : "var(--cream-deep)",
+                  color: canCombine ? "var(--paper)" : "var(--ink-faint)",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: canCombine && !pending ? "pointer" : "not-allowed",
+                }}
+              >
+                <Combine className="h-4 w-4" /> Combine
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                style={{ background: "transparent", border: "none", color: "var(--ink-soft)", fontSize: 12.5, cursor: "pointer" }}
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
         </header>
 
         {invoices.length === 0 ? (
@@ -184,6 +267,7 @@ export function InvoicesClient({
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: 'Arial, sans-serif' }}>
             <thead>
               <tr style={{ background: "var(--cream-light)" }}>
+                <Th width={36}>{""}</Th>
                 <Th width={120}>Invoice #</Th>
                 <Th>Bill to</Th>
                 <Th>Description</Th>
@@ -201,6 +285,17 @@ export function InvoicesClient({
                   style={{ borderTop: "1px solid var(--hair)", cursor: "pointer" }}
                   onClick={() => startEdit(inv)}
                 >
+                  <Td>
+                    {!inv.sent ? (
+                      <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
+                        <Checkbox
+                          checked={selected.has(inv.id)}
+                          onCheckedChange={() => toggleSelect(inv.id)}
+                          aria-label={`Select ${inv.invoiceNumber}`}
+                        />
+                      </span>
+                    ) : null}
+                  </Td>
                   <Td>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
