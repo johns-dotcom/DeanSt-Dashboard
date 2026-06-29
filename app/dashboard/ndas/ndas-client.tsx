@@ -169,6 +169,7 @@ export function NdasClient({
           pending={pending}
           showOwnerFields={client.showOwnerFields}
           showTerms={client.showTerms}
+          blankHref={`/api/ndas/blank/${client.slug}`}
         />
         <NdaPreviewPanel body={effectiveBody} signatureLines={signatureLines} />
       </div>
@@ -328,6 +329,7 @@ function NdaFormPanel({
   pending,
   showOwnerFields,
   showTerms,
+  blankHref,
 }: {
   draft: NdaDraft;
   setDraft: React.Dispatch<React.SetStateAction<NdaDraft>>;
@@ -340,6 +342,7 @@ function NdaFormPanel({
   pending: boolean;
   showOwnerFields: boolean;
   showTerms: boolean;
+  blankHref: string;
 }) {
   return (
     <section
@@ -358,15 +361,25 @@ function NdaFormPanel({
           <h3 style={{ fontFamily: "Arial, sans-serif", fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em" }}>
             {editing ? "Edit NDA" : "New NDA"}
           </h3>
-          {editing ? (
-            <button
-              onClick={onCancel}
-              type="button"
-              style={{ background: "transparent", border: "none", color: "var(--ink-soft)", fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+            {editing ? (
+              <button
+                onClick={onCancel}
+                type="button"
+                style={{ background: "transparent", border: "none", color: "var(--ink-soft)", fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <X className="h-3.5 w-3.5" /> Discard
+              </button>
+            ) : null}
+            <a
+              href={blankHref}
+              download
+              style={{ color: "var(--ink-soft)", fontSize: 12, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+              title="Download a blank copy of this template to print and fill by hand"
             >
-              <X className="h-3.5 w-3.5" /> Discard
-            </button>
-          ) : null}
+              <Download className="h-3.5 w-3.5" /> Download blank
+            </a>
+          </div>
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4 }}>
           Fill in the parties; preview updates live; download as PDF.
