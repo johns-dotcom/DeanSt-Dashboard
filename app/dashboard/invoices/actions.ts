@@ -14,6 +14,7 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number().min(0),
   amount: z.coerce.number().min(0),
+  receiptUploaded: z.boolean().optional(),
 });
 
 const invoiceSchema = z.object({

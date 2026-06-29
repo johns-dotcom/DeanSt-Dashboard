@@ -111,6 +111,8 @@ export interface LineItem {
   quantity: number;
   rate: number;
   amount: number;
+  // Reimbursement-only: manual flag for whether the line's receipt is in hand.
+  receiptUploaded?: boolean;
 }
 
 export const invoices = pgTable("invoices", {

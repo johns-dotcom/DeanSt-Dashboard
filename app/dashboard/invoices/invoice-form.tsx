@@ -5,6 +5,7 @@ import { Plus, X, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { Toggle } from "@/components/brand/toggle";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ReceiptsManager } from "./receipts-manager";
 import { createInvoice, updateInvoice } from "./actions";
 import type { Invoice, LineItem } from "@/lib/db/schema";
@@ -316,6 +317,26 @@ export function InvoiceFormPanel({
                     borderStyle: "dashed",
                   }}
                 />
+                {draft.type === "reimbursement" ? (
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12,
+                      color: it.receiptUploaded ? "var(--sign-green)" : "var(--ink-soft)",
+                      cursor: "pointer",
+                      marginTop: 2,
+                      userSelect: "none",
+                    }}
+                  >
+                    <Checkbox
+                      checked={Boolean(it.receiptUploaded)}
+                      onCheckedChange={(v) => updateLineItem(idx, { receiptUploaded: v === true })}
+                    />
+                    Receipt uploaded
+                  </label>
+                ) : null}
               </div>
             ))}
           </div>
