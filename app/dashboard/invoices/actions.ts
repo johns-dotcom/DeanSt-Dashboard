@@ -81,7 +81,7 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/invoices");
-  return { ok: true as const };
+  return { ok: true as const, id: inserted.id };
 }
 
 export async function updateInvoice(id: string, input: z.infer<typeof invoiceSchema>) {

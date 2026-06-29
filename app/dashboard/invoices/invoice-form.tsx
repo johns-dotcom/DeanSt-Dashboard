@@ -1,7 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Plus, X, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { Toggle } from "@/components/brand/toggle";
@@ -53,6 +53,14 @@ export function InvoiceFormPanel({
   onCancel: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  // Receipts staged for a brand-new reimbursement. They're held locally and
+  // only uploaded once the invoice is created — so adding receipts never
+  // forces the invoice to save, and several can be staged first.
+  const [staged, setStaged] = useState<File[]>([]);
+
+  // Clear staged files whenever we switch which invoice the form is on
+  // (new → edit, edit → other, edit → new).
+  useEffect(() => { setStaged([]); }, [editingInvoice?.id]);
 
   function updateLineItem(idx: number, patch: Partial<LineItem>) {
     setDraft((p) => ({
@@ -102,7 +110,36 @@ export function InvoiceFormPanel({
         ? await updateInvoice(editingInvoice.id, payload)
         : await createInvoice(payload);
       if ("error" in result && result.error) { toast.error(result.error); return; }
-      toast.success(editingInvoice ? "Invoice updated" : `Invoice ${displayNumber} created`);
+
+      // Now that the invoice exists, attach any staged receipts to it.
+      const stagedCount = staged.length;
+      const newInvoiceId =
+        !editingInvoice && "id" in result && typeof result.id === "string" ? result.id : null;
+      if (newInvoiceId && stagedCount > 0) {
+        const failures: string[] = [];
+        for (const file of staged) {
+          try {
+            const form = new FormData();
+            form.append("file", file);
+            form.append("invoiceId", newInvoiceId);
+            const res = await fetch("/api/upload/receipt", { method: "POST", body: form });
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+              throw new Error(body.error ?? `Upload failed (${res.status})`);
+            }
+          } catch (err) {
+            failures.push(`${file.name}: ${err instanceof Error ? err.message : "failed"}`);
+          }
+        }
+        if (failures.length) toast.error(`Invoice created, but some receipts didn't upload:\n${failures.join("\n")}`);
+      }
+
+      setStaged([]);
+      toast.success(
+        editingInvoice
+          ? "Invoice updated"
+          : `Invoice ${displayNumber} created${stagedCount ? ` · ${stagedCount} receipt${stagedCount === 1 ? "" : "s"}` : ""}`
+      );
       onSaved();
     });
   }
@@ -357,14 +394,121 @@ export function InvoiceFormPanel({
         <div
           style={{
             borderTop: "1px solid var(--hair)",
-            paddingTop: 14,
-            fontSize: 12,
-            color: "var(--ink-soft)",
+            paddingTop: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
           }}
         >
-          Create the reimbursement first — receipts can be attached once it&apos;s saved.
+          <div>
+            <h4 style={{ fontSize: 14, fontWeight: 600 }}>Receipts</h4>
+            <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+              Add as many as you need — they stay staged and attach when you create the reimbursement.
+            </p>
+          </div>
+          <ReceiptStager files={staged} setFiles={setStaged} disabled={pending} />
         </div>
       ) : null}
     </section>
+  );
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// Stages receipt files locally (no upload). The invoice form uploads them
+// after the reimbursement is created, so nothing persists until you save.
+function ReceiptStager({
+  files,
+  setFiles,
+  disabled,
+}: {
+  files: File[];
+  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
+  disabled?: boolean;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+
+  function add(list: FileList | File[] | null) {
+    if (!list) return;
+    const arr = Array.from(list);
+    if (arr.length === 0) return;
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      return [...prev, ...arr.filter((f) => !seen.has(`${f.name}:${f.size}`))];
+    });
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <label
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); add(e.dataTransfer.files); }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "18px 16px",
+          border: `1.5px dashed ${dragOver ? "var(--sign-green)" : "var(--hair)"}`,
+          borderRadius: 10,
+          background: dragOver ? "rgba(29,60,142,0.06)" : "var(--cream-light)",
+          color: "var(--ink-soft)",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          transition: "background 120ms, border-color 120ms",
+        }}
+      >
+        <Upload className="h-5 w-5" style={{ color: "var(--sign-green)" }} />
+        <div style={{ fontSize: 13.5, color: "var(--ink)", fontWeight: 500 }}>Drop receipts here</div>
+        <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>or click to browse · PDF, images, anything</div>
+        <input
+          type="file"
+          multiple
+          hidden
+          disabled={disabled}
+          onChange={(e) => { add(e.target.files); e.target.value = ""; }}
+        />
+      </label>
+
+      {files.length > 0 ? (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid var(--hair)", borderRadius: 8, overflow: "hidden" }}>
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}:${f.size}:${i}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                borderTop: i === 0 ? "none" : "1px solid var(--hair)",
+                background: i % 2 === 0 ? "transparent" : "var(--cream-light)",
+              }}
+            >
+              <FileText className="h-4 w-4 flex-none" style={{ color: "var(--ink-soft)" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>
+                  {f.name}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>{fmtSize(f.size)} · staged</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                title="Remove"
+                style={{ width: 28, height: 28, borderRadius: 6, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "1px solid var(--hair)", color: "var(--ink-soft)", cursor: "pointer" }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileText, Download, Trash2, Loader2, Archive } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +31,16 @@ export function ReceiptsManager({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [, startTransition] = useTransition();
+  // Receipts persist immediately, but we don't reload the page after every
+  // file — that's disruptive when adding several. Instead we mark the list
+  // dirty and refresh the surrounding page once, when this panel closes.
+  const dirtyRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (dirtyRef.current) router.refresh();
+    };
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,8 +72,8 @@ export function ReceiptsManager({
         const data = await res.json();
         setReceipts((prev) => [...prev, data.receipt]);
       }
+      dirtyRef.current = true;
       toast.success(arr.length === 1 ? "Receipt uploaded" : `${arr.length} receipts uploaded`);
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -85,8 +95,8 @@ export function ReceiptsManager({
       const res = await deleteReceipt(r.id);
       if ("error" in res && res.error) { toast.error(res.error); return; }
       setReceipts((prev) => prev.filter((x) => x.id !== r.id));
+      dirtyRef.current = true;
       toast.success("Receipt deleted");
-      router.refresh();
     });
   }
 
