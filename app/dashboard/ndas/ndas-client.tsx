@@ -28,7 +28,7 @@ import type { Nda } from "@/lib/db/schema";
 const emptyDraft = (defaults?: { name?: string; signatoryName?: string; signatoryPosition?: string }): NdaDraft => ({
   recipientName: "",
   recipientAddress: "",
-  effectiveDate: "",
+  effectiveDate: new Date().toISOString().slice(0, 10),
   ownerName: defaults?.name ?? "Dean St Co",
   ownerAddress: "",
   ownerSignatoryName: defaults?.signatoryName ?? "",
