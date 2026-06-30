@@ -28,7 +28,7 @@ import type { Nda } from "@/lib/db/schema";
 const emptyDraft = (defaults?: { name?: string; signatoryName?: string; signatoryPosition?: string }): NdaDraft => ({
   recipientName: "",
   recipientAddress: "",
-  effectiveDate: new Date().toISOString().slice(0, 10),
+  effectiveDate: "",
   ownerName: defaults?.name ?? "Dean St Co",
   ownerAddress: "",
   ownerSignatoryName: defaults?.signatoryName ?? "",
@@ -405,13 +405,16 @@ function NdaFormPanel({
           style={textareaStyle}
         />
 
-        <FieldLabel>Effective date</FieldLabel>
+        <FieldLabel>Effective date (optional)</FieldLabel>
         <input
           type="date"
           value={draft.effectiveDate}
           onChange={(e) => setDraft((p) => ({ ...p, effectiveDate: e.target.value }))}
           style={inputStyle}
         />
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: -8 }}>
+          Leave blank to print a fill-in line.
+        </div>
 
         {showOwnerFields ? (
           <>
