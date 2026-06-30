@@ -1,4 +1,4 @@
-import { parseNdaBody } from "@/lib/nda-template";
+import { parseNdaBody, isNdaSubparagraph } from "@/lib/nda-template";
 
 export interface NdaDraft {
   recipientName: string;
@@ -17,9 +17,22 @@ export interface NdaDraft {
   bodyText: string;
 }
 
+export interface NdaFormat {
+  titleUnderline: boolean;
+  paragraphIndent: boolean;
+}
+
 const isSubsection = (header: string | null) => Boolean(header && /^[A-Z]\.\s/.test(header));
 
-export function NdaPreviewPanel({ body, signatureLines }: { body: string; signatureLines: string[] }) {
+export function NdaPreviewPanel({
+  body,
+  signatureLines,
+  format,
+}: {
+  body: string;
+  signatureLines: string[];
+  format: NdaFormat;
+}) {
   const blocks = parseNdaBody(body);
 
   return (
@@ -38,11 +51,37 @@ export function NdaPreviewPanel({ body, signatureLines }: { body: string; signat
       {blocks.map((b, i) => {
         if (b.kind === "title") {
           return (
-            <h1 key={i} style={{ fontSize: 14, fontWeight: 700, textAlign: "center", margin: "0 0 18px" }}>
+            <h1
+              key={i}
+              style={{
+                fontSize: 14,
+                fontWeight: format.titleUnderline ? 400 : 700,
+                textDecoration: format.titleUnderline ? "underline" : "none",
+                textAlign: "center",
+                margin: "0 0 18px",
+              }}
+            >
               {b.text}
             </h1>
           );
         }
+        // A standalone heading (e.g. "W I T N E S S E T H:") renders centered.
+        if (b.header && !b.body) {
+          return (
+            <p
+              key={i}
+              style={{
+                textAlign: "center",
+                fontWeight: 700,
+                textDecoration: format.titleUnderline ? "underline" : "none",
+                margin: "14px 0",
+              }}
+            >
+              {b.header}
+            </p>
+          );
+        }
+        const indent = format.paragraphIndent ? (isNdaSubparagraph(b.body) ? 48 : 28) : 0;
         return (
           <p
             key={i}
@@ -50,6 +89,7 @@ export function NdaPreviewPanel({ body, signatureLines }: { body: string; signat
               marginBottom: 12,
               textAlign: "justify",
               whiteSpace: "pre-wrap",
+              textIndent: indent,
               marginLeft: isSubsection(b.header) ? 16 : 0,
             }}
           >

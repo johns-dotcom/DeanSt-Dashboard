@@ -171,7 +171,7 @@ export function NdasClient({
           showTerms={client.showTerms}
           blankHref={`/api/ndas/blank/${client.slug}`}
         />
-        <NdaPreviewPanel body={effectiveBody} signatureLines={signatureLines} />
+        <NdaPreviewPanel body={effectiveBody} signatureLines={signatureLines} format={client.format} />
       </div>
 
       <section style={{ background: "var(--paper)", border: "1px solid var(--hair)", borderRadius: 10, overflow: "hidden" }}>

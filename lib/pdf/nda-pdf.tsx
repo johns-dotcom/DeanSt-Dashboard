@@ -1,11 +1,13 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Nda } from "@/lib/db/schema";
-import { parseNdaBody, type NdaTemplateFields } from "@/lib/nda-template";
+import { parseNdaBody, isNdaSubparagraph, type NdaTemplateFields } from "@/lib/nda-template";
 import { getNdaClient } from "@/lib/nda-clients";
 
 const styles = StyleSheet.create({
   page: { padding: 64, fontSize: 11, fontFamily: "Times-Roman", color: "#1a1a1a", lineHeight: 1.5 },
   title: { fontSize: 13, fontFamily: "Times-Bold", textAlign: "center", marginBottom: 18 },
+  titleUnderline: { fontSize: 13, fontFamily: "Times-Roman", textAlign: "center", marginBottom: 18, textDecoration: "underline" },
+  centeredHeading: { textAlign: "center", fontFamily: "Times-Bold", marginTop: 14, marginBottom: 14 },
   paragraph: { marginBottom: 10, textAlign: "justify" },
   indent: { marginLeft: 14 },
   bold: { fontFamily: "Times-Bold" },
@@ -36,6 +38,7 @@ const isSubsection = (header: string | null) => Boolean(header && /^[A-Z]\.\s/.t
 
 export function NdaPDF({ nda }: { nda: Nda }) {
   const client = getNdaClient(nda.clientSlug);
+  const fmt = client.format;
   const body = nda.bodyText?.trim() ? nda.bodyText : client.buildBody(ndaToFields(nda));
   const blocks = parseNdaBody(body);
   const signatureLines = client.signatureLines({ recipientName: nda.recipientName ?? "" });
@@ -45,9 +48,22 @@ export function NdaPDF({ nda }: { nda: Nda }) {
       <Page size="A4" style={styles.page}>
         {blocks.map((b, i) => {
           if (b.kind === "title") {
-            return <Text key={i} style={styles.title}>{b.text}</Text>;
+            return <Text key={i} style={fmt.titleUnderline ? styles.titleUnderline : styles.title}>{b.text}</Text>;
           }
-          const style = isSubsection(b.header) ? [styles.paragraph, styles.indent] : styles.paragraph;
+          // Standalone heading (e.g. "W I T N E S S E T H:") — centered.
+          if (b.header && !b.body) {
+            return (
+              <Text key={i} style={[styles.centeredHeading, fmt.titleUnderline ? { textDecoration: "underline" } : {}]}>
+                {b.header}
+              </Text>
+            );
+          }
+          const indent = fmt.paragraphIndent ? (isNdaSubparagraph(b.body) ? 48 : 28) : 0;
+          const style = [
+            styles.paragraph,
+            isSubsection(b.header) ? styles.indent : {},
+            indent ? { textIndent: indent } : {},
+          ];
           return (
             <Text key={i} style={style}>
               {b.header ? <Text style={styles.bold}>{b.header}</Text> : null}

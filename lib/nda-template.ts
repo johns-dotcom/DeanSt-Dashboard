@@ -100,7 +100,7 @@ export function buildGrimesBody(f: NdaTemplateFields): string {
   const paras: string[] = [
     "Confidentiality Agreement",
     `Agreement made as of ${date} by and between Claire Elise Boucher p/k/a Grimes ("Artist"), and ${recipient} ("you").`,
-    "WITNESSETH:",
+    "W I T N E S S E T H:",
     `For good and valuable consideration, the receipt and sufficiency of which is hereby acknowledged by you, you and Artist hereby agree as follows:`,
     `1. You hereby expressly acknowledge and agree that Artist's privacy is highly valued and that all efforts will be made to maintain confidentially with respect to all information and other material of any kind concerning Artist, except for information or material publicly and intentionally disclosed by Artist. Accordingly, you hereby irrevocably and perpetually agree that:`,
     `(a) You shall not at any time use or disclose, directly or indirectly, to anyone any information (whether such information is in written, oral, photographic, audio and/or audiovisual in nature) at any time acquired by you in the course of or in connection with your employment or engagement by, or business or personal relationship with, an "Interested Party", (including from a prior or future employment by, or business relationship with, an Interested Party, if any), or otherwise acquired at any time, in any way relating to: Artist, Artist's entertainment activities or any other services or activities of Artist, Artist's personal life, Artist's business and financial affairs, or the business, financial or personal affairs any person, firm, corporation or other entity associated with or related to Artist, including, without limitation, Artist's family, friends, associates, employees, acquaintances, representatives, management, affiliated entities or companies ("Related Entities"), and all such information shall be deemed to be confidential, private, secret and sensitive and shall be kept by you confidential and secret unless Artist otherwise advises you in writing. You warrant and represent that prior to the date of execution hereof, you have not made any use of, or disclosed any information described above in this paragraph 1(a). As used herein, the term "Interested Party" shall refer to and include Artist, any entity affiliated or associated with Artist, or with whom any of the foregoing has a contractual, business or other relationship. For clarification, nothing contained herein shall require any Interested Party to enter into any agreement with you.`,
@@ -115,6 +115,12 @@ export function buildGrimesBody(f: NdaTemplateFields): string {
   ];
 
   return paras.join("\n\n");
+}
+
+// A subparagraph in the legal-indent style — starts with a parenthesized
+// marker like "(a)" or "(ii)" — indents further than a numbered paragraph.
+export function isNdaSubparagraph(text: string): boolean {
+  return /^\s*\(/.test(text);
 }
 
 export type NdaBlock =

@@ -18,6 +18,13 @@ export interface NdaClientConfig {
   buildBody: (f: NdaTemplateFields) => string;
   /** The signature block, rendered verbatim under the body in preview + PDF. */
   signatureLines: (f: { recipientName: string }) => string[];
+  /** Per-template formatting for the body (legal vs. block style). */
+  format: {
+    /** Underline the title (Grimes) instead of bolding it (Dean St). */
+    titleUnderline: boolean;
+    /** Give each paragraph a first-line indent; subparagraphs indent further. */
+    paragraphIndent: boolean;
+  };
 }
 
 const DEAN_ST: NdaClientConfig = {
@@ -25,6 +32,7 @@ const DEAN_ST: NdaClientConfig = {
   name: "Dean St",
   showOwnerFields: true,
   showTerms: true,
+  format: { titleUnderline: false, paragraphIndent: false },
   buildBody: buildNdaBody,
   signatureLines: () => [
     "OWNER:",
@@ -43,6 +51,7 @@ const GRIMES: NdaClientConfig = {
   owner: { name: "Claire Elise Boucher p/k/a Grimes", signatoryName: "Claire Elise Boucher", signatoryPosition: "" },
   showOwnerFields: false,
   showTerms: false,
+  format: { titleUnderline: true, paragraphIndent: true },
   buildBody: buildGrimesBody,
   signatureLines: (f) => [
     "By: ______________________",
