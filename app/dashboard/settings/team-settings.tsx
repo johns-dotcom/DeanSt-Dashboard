@@ -271,7 +271,7 @@ export function TeamSettings({
                       <select
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.id, e.target.value as Role)}
-                        style={{ ...selectStyle, width: 130, height: 36, fontSize: 13 }}
+                        style={{ ...selectStyle, width: 130, height: 36, fontSize: 13, paddingTop: 0, paddingBottom: 0, backgroundPosition: "calc(100% - 14px) 15px, calc(100% - 9px) 15px" }}
                       >
                         {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
