@@ -20,16 +20,19 @@
   }
 
   [data-theme="dark"] {
-    --sign-green: #5677c9;
-    --sign-green-soft: #6e8cd0;
-    --cream: #14110d;
-    --cream-light: #1b1813;
-    --cream-deep: #0e0c09;
-    --paper: #1f1c17;
-    --ink: #f1ebdf;
-    --ink-soft: rgba(241, 235, 223, 0.65);
-    --ink-faint: rgba(241, 235, 223, 0.38);
-    --hair: rgba(241, 235, 223, 0.10);
+    /* Brighter, cleaner navy accent so it reads on a dark surface. */
+    --sign-green: #6c88d6;
+    --sign-green-soft: #7f99dd;
+    /* Layered charcoal surfaces (nearly neutral, a whisper warm) with clear
+       steps of elevation: page < sidebar < card. Recessed states use deep. */
+    --cream: #191814;       /* page / main content background */
+    --cream-light: #232019; /* sidebar + input fills */
+    --cream-deep: #100f0c;  /* recessed panels, active nav */
+    --paper: #29251e;       /* elevated cards */
+    --ink: #f3eee4;         /* primary text */
+    --ink-soft: rgba(243, 238, 228, 0.68);
+    --ink-faint: rgba(243, 238, 228, 0.46);
+    --hair: rgba(243, 238, 228, 0.14);
   }
 
   html, body {
