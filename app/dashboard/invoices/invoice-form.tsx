@@ -262,9 +262,21 @@ export function InvoiceFormPanel({
               <Plus className="h-3 w-3" /> Add item
             </button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: draft.type === "reimbursement" ? 12 : 10 }}>
             {draft.lineItems.map((it, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  // For reimbursements, box each line item so its receipt
+                  // checkbox is clearly tied to this item, not the next.
+                  ...(draft.type === "reimbursement"
+                    ? { border: "1px solid var(--hair)", borderRadius: 10, padding: 12 }
+                    : {}),
+                }}
+              >
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 28px", gap: 8 }}>
                   <input
                     placeholder="Description"
@@ -320,13 +332,15 @@ export function InvoiceFormPanel({
                 {draft.type === "reimbursement" ? (
                   <label
                     style={{
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
                       gap: 7,
                       fontSize: 12,
                       color: it.receiptUploaded ? "var(--sign-green)" : "var(--ink-soft)",
                       cursor: "pointer",
-                      marginTop: 2,
+                      marginTop: 8,
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--hair)",
                       userSelect: "none",
                     }}
                   >
@@ -334,7 +348,12 @@ export function InvoiceFormPanel({
                       checked={Boolean(it.receiptUploaded)}
                       onCheckedChange={(v) => updateLineItem(idx, { receiptUploaded: v === true })}
                     />
-                    Receipt uploaded
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      Receipt uploaded
+                      {it.description.trim() ? (
+                        <span style={{ color: "var(--ink-faint)" }}> · {it.description.trim()}</span>
+                      ) : null}
+                    </span>
                   </label>
                 ) : null}
               </div>
