@@ -28,10 +28,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     />
   );
 
+  // Filename includes the sender (Dean St) and the recipient (Bill To) so
+  // downloaded invoices are self-describing: DeanSt_Tyler-Henry_INV-0002.pdf
+  const safe = (s: string) => s.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
+  const recipient = safe(invoice.client) || "Recipient";
+  const filename = `DeanSt_${recipient}_${invoice.invoiceNumber}.pdf`;
+
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${invoice.invoiceNumber}.pdf"`,
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
       "cache-control": "no-store",
     },
   });
