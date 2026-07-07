@@ -23,12 +23,12 @@
     /* Brighter, cleaner navy accent so it reads on a dark surface. */
     --sign-green: #6c88d6;
     --sign-green-soft: #7f99dd;
-    /* Layered charcoal surfaces (nearly neutral, a whisper warm) with clear
-       steps of elevation: page < sidebar < card. Recessed states use deep. */
-    --cream: #191814;       /* page / main content background */
-    --cream-light: #232019; /* sidebar + input fills */
-    --cream-deep: #100f0c;  /* recessed panels, active nav */
-    --paper: #29251e;       /* elevated cards */
+    /* Neutral near-black charcoal surfaces (no brown tint) with clear steps of
+       elevation: page < sidebar < card. Recessed states use deep. */
+    --cream: #0f0f11;       /* page / main content background */
+    --cream-light: #191a1c; /* sidebar + input fills */
+    --cream-deep: #0a0a0b;  /* recessed panels, active nav */
+    --paper: #1f2023;       /* elevated cards */
     --ink: #f3eee4;         /* primary text */
     --ink-soft: rgba(243, 238, 228, 0.68);
     --ink-faint: rgba(243, 238, 228, 0.46);
