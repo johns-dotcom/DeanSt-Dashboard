@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Eye, Pencil, Download, Trash2, Plus, X, Paperclip, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, Pencil, Download, Trash2, Plus, X, Paperclip, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { PageFooter } from "@/components/brand/page-footer";
@@ -13,7 +14,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { NdaPreviewPanel, type NdaDraft } from "./nda-preview";
-import { NdaFilesPanel } from "./nda-files-panel";
+import { NdaFilesPanel, uploadNdaFiles } from "./nda-files-panel";
 import { createNda, updateNda, deleteNda, setNdaSigned } from "./actions";
 import { formatDate } from "@/lib/utils";
 import { getNdaClient, NDA_CLIENTS, DEFAULT_NDA_CLIENT_SLUG } from "@/lib/nda-clients";
@@ -95,6 +96,28 @@ export function NdasClient({
   const [bodyDirty, setBodyDirty] = useState(false);
   const [filesFor, setFilesFor] = useState<Nda | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  // Drag-and-drop of a signed copy directly onto an NDA row.
+  const [dropId, setDropId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  async function handleRowDrop(n: Nda, files: FileList) {
+    if (!files.length) return;
+    setUploadingId(n.id);
+    try {
+      await uploadNdaFiles(n.id, files);
+      toast.success(
+        files.length === 1
+          ? `Signed copy attached to ${n.recipientName}`
+          : `${files.length} files attached to ${n.recipientName}`
+      );
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   // Reset the draft when switching client subpages.
   useEffect(() => { setEditingId(null); setDraft(initialDraft); setBodyDirty(false); }, [clientSlug, initialDraft]);
@@ -217,19 +240,50 @@ export function NdasClient({
                 <Th>Owner</Th>
                 <Th width={140}>Effective</Th>
                 <Th width={120}>Signed</Th>
-                <Th align="right" width={170}>Actions</Th>
+                <Th align="right" width={240}>Actions</Th>
               </tr>
             </thead>
             <tbody>
               {ndas.map((n) => (
                 <tr
                   key={n.id}
-                  style={{ borderTop: "1px solid var(--hair)", cursor: "pointer" }}
+                  style={{
+                    borderTop: "1px solid var(--hair)",
+                    cursor: "pointer",
+                    background:
+                      dropId === n.id
+                        ? "rgba(29,60,142,0.10)"
+                        : uploadingId === n.id
+                        ? "var(--cream-light)"
+                        : undefined,
+                    outline: dropId === n.id ? "2px dashed var(--sign-green)" : "none",
+                    outlineOffset: "-3px",
+                    transition: "background 120ms",
+                  }}
                   onClick={() => startEdit(n)}
+                  onDragOver={(e) => {
+                    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+                    e.preventDefault();
+                    setDropId(n.id);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropId(null);
+                  }}
+                  onDrop={(e) => {
+                    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+                    e.preventDefault();
+                    setDropId(null);
+                    handleRowDrop(n, e.dataTransfer.files);
+                  }}
+                  title="Drop a signed copy here to attach it"
                 >
                   <Td>
                     <div style={{ fontWeight: 500 }}>{n.recipientName}</div>
-                    {n.recipientAddress ? (
+                    {dropId === n.id ? (
+                      <div style={{ fontSize: 12, color: "var(--sign-green)", fontWeight: 600, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <Paperclip className="h-3 w-3" /> Drop to attach signed copy
+                      </div>
+                    ) : n.recipientAddress ? (
                       <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{n.recipientAddress}</div>
                     ) : null}
                   </Td>
@@ -241,7 +295,12 @@ export function NdasClient({
                     </div>
                   </Td>
                   <Td align="right">
-                    <div style={{ display: "inline-flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                      {uploadingId === n.id ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginRight: 4, fontSize: 12, color: "var(--sign-green)" }}>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                        </span>
+                      ) : null}
                       <FilesButton count={fileCounts[n.id] ?? 0} onClick={() => setFilesFor(n)} />
                       <a
                         href={`/api/ndas/${n.id}/pdf?inline=1`}
@@ -396,7 +455,7 @@ function NdaFormPanel({
           required
         />
 
-        <FieldLabel>Recipient address</FieldLabel>
+        <FieldLabel>Recipient address (optional)</FieldLabel>
         <textarea
           value={draft.recipientAddress}
           onChange={(e) => setDraft((p) => ({ ...p, recipientAddress: e.target.value }))}
@@ -429,7 +488,7 @@ function NdaFormPanel({
               style={inputStyle}
             />
 
-            <FieldLabel>Owner address</FieldLabel>
+            <FieldLabel>Owner address (optional)</FieldLabel>
             <textarea
               value={draft.ownerAddress}
               onChange={(e) => setDraft((p) => ({ ...p, ownerAddress: e.target.value }))}
@@ -440,7 +499,7 @@ function NdaFormPanel({
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <FieldLabel>Signatory name</FieldLabel>
+                <FieldLabel>Signatory name (optional)</FieldLabel>
                 <input
                   value={draft.ownerSignatoryName}
                   onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryName: e.target.value }))}
@@ -449,7 +508,7 @@ function NdaFormPanel({
                 />
               </div>
               <div>
-                <FieldLabel>Position</FieldLabel>
+                <FieldLabel>Position (optional)</FieldLabel>
                 <input
                   value={draft.ownerSignatoryPosition}
                   onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryPosition: e.target.value }))}
@@ -634,21 +693,23 @@ function FilesButton({ count, onClick }: { count: number; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      aria-label={`Signed copy (${count})`}
-      title={count ? `${count} file${count === 1 ? "" : "s"} attached` : "Upload signed copy"}
+      aria-label={count ? `Signed copies (${count})` : "Add signed copy"}
+      title={count ? `${count} signed cop${count === 1 ? "y" : "ies"} attached — click to manage` : "Upload or drop a signed copy"}
       style={{
         ...rowIconStyle,
         background: count > 0 ? "rgba(29,60,142,0.10)" : rowIconStyle.background,
         color: count > 0 ? "var(--sign-green)" : (rowIconStyle.color as string),
         borderColor: count > 0 ? "rgba(29,60,142,0.25)" : "var(--hair)",
         width: "auto",
-        paddingLeft: 8,
-        paddingRight: count > 0 ? 8 : 10,
-        gap: 4,
+        paddingLeft: 9,
+        paddingRight: 10,
+        gap: 5,
+        fontSize: 12,
+        fontWeight: 500,
       }}
     >
       <Paperclip className="h-3.5 w-3.5" />
-      {count > 0 ? <span style={{ fontSize: 11, fontWeight: 600 }}>{count}</span> : null}
+      <span>{count > 0 ? `${count} signed` : "Add signed"}</span>
     </button>
   );
 }

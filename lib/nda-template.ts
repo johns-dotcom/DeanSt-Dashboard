@@ -45,12 +45,26 @@ function fmtDate(d: string): string {
 
 export function buildNdaBody(f: NdaTemplateFields): string {
   const ownerName = f.ownerName.trim() || BLANK;
-  const ownerAddress = f.ownerAddress.trim() || BLANK;
   const recipientName = f.recipientName.trim() || "RECIPIENT";
-  const recipientAddress = f.recipientAddress.trim() || BLANK;
   const effectiveDate = fmtDate(f.effectiveDate);
-  const signatoryName = f.ownerSignatoryName.trim() || BLANK;
-  const signatoryPosition = f.ownerSignatoryPosition.trim() || BLANK;
+  // Addresses are optional. When present the party clause carries its address
+  // ("of <addr>" / "located at <addr>"); when blank the whole clause is dropped
+  // so the recital reads cleanly instead of leaving a blank underscore.
+  const ownerClause = f.ownerAddress.trim()
+    ? `${ownerName} (the "Owner"), of ${f.ownerAddress.trim()}`
+    : `${ownerName} (the "Owner")`;
+  const recipientClause = f.recipientAddress.trim()
+    ? `${recipientName} (the "Recipient"), located at ${f.recipientAddress.trim()}`
+    : `${recipientName} (the "Recipient")`;
+  // The signatory is optional: when the owner signs in their own name, leave
+  // the signatory fields blank and the "on behalf of" clause is dropped — the
+  // agreement is simply executed by the Owner. A signatory name with no
+  // position still reads cleanly (no dangling comma).
+  const sigName = f.ownerSignatoryName.trim();
+  const sigPosition = f.ownerSignatoryPosition.trim();
+  const executedBy = sigName
+    ? `${sigName}${sigPosition ? `, ${sigPosition},` : ""} on behalf of ${ownerName}`
+    : ownerName;
   const termYears = f.termYears || DEFAULT_TERM_YEARS;
   const survivalYears = f.survivalYears || DEFAULT_SURVIVAL_YEARS;
   const governingLaw = f.governingLaw.trim() || DEFAULT_GOVERNING_LAW;
@@ -59,7 +73,7 @@ export function buildNdaBody(f: NdaTemplateFields): string {
 
   const paras: string[] = [
     "NON-DISCLOSURE AGREEMENT",
-    `This Non-disclosure Agreement (this "Agreement") is made effective as of ${effectiveDate} (the "Effective Date"), by and between ${ownerName} (the "Owner"), of ${ownerAddress} and ${recipientName} (the "Recipient"), located at ${recipientAddress}.`,
+    `This Non-disclosure Agreement (this "Agreement") is made effective as of ${effectiveDate} (the "Effective Date"), by and between ${ownerClause} and ${recipientClause}.`,
     `The Owner has requested and the Recipient agrees that the Recipient will protect the confidential material and information which may be disclosed between the Owner and the Recipient. Therefore, the parties agree as follows:`,
     `I. CONFIDENTIAL INFORMATION. The term "Confidential Information" means any information or material which is proprietary to the Owner, whether or not owned or developed by the Owner, which is not generally known other than by the Owner, and which the Recipient may obtain through any direct or indirect contact with the Owner. Regardless of whether specifically identified as confidential or proprietary, Confidential Information shall include any information provided by the Owner concerning the business, technology and information of the Owner and any third party with which the Owner deals, including, without limitation, business records and plans, trade secrets, technical data, product ideas, contracts, financial information, pricing structure, discounts, computer programs and listings, source code and/or object code, copyrights and intellectual property, inventions, sales leads, strategic alliances, partners, and customer and client lists. The nature of the information and the manner of disclosure are such that a reasonable person would understand it to be confidential.`,
     `A. "Confidential Information" does not include:\n- matters of public knowledge that result from disclosure by the Owner;\n- information rightfully received by the Recipient from a third party without a duty of confidentiality;\n- information independently developed by the Recipient;\n- information disclosed by operation of law;\n- information disclosed by the Recipient with the prior written consent of the Owner; including bank statements, invoices, and any financial documents.\nand any other information that both parties agree in writing is not confidential.`,
@@ -84,7 +98,7 @@ export function buildNdaBody(f: NdaTemplateFields): string {
     paras.push(`XIII. ADDITIONAL TERMS. ${extra}`);
   }
   paras.push(
-    `${sigNum}. SIGNATORIES. This Agreement shall be executed by ${signatoryName}, ${signatoryPosition}, on behalf of ${ownerName} and ${recipientName} and delivered in the manner prescribed by law as of the date first written above.`
+    `${sigNum}. SIGNATORIES. This Agreement shall be executed by ${executedBy} and ${recipientName} and delivered in the manner prescribed by law as of the date first written above.`
   );
 
   return paras.join("\n\n");

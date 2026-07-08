@@ -19,6 +19,28 @@ function fmtSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * Upload one or more signed-copy files against an NDA. Shared by the files
+ * panel and the drop-on-row shortcut in the ledger. Throws on the first
+ * failed upload; returns the created file records on success.
+ */
+export async function uploadNdaFiles(ndaId: string, input: FileList | File[]): Promise<NdaFile[]> {
+  const uploaded: NdaFile[] = [];
+  for (const file of Array.from(input)) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("ndaId", ndaId);
+    const res = await fetch("/api/upload/nda", { method: "POST", body: form });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+      throw new Error(body.error ?? `Upload failed (${res.status})`);
+    }
+    const data = await res.json();
+    uploaded.push(data.file as NdaFile);
+  }
+  return uploaded;
+}
+
 export function NdaFilesPanel({
   nda,
   open,
@@ -52,18 +74,8 @@ export function NdaFilesPanel({
     if (arr.length === 0) return;
     setUploading(true);
     try {
-      for (const file of arr) {
-        const form = new FormData();
-        form.append("file", file);
-        form.append("ndaId", nda.id);
-        const res = await fetch("/api/upload/nda", { method: "POST", body: form });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
-          throw new Error(body.error ?? `Upload failed (${res.status})`);
-        }
-        const data = await res.json();
-        setFiles((prev) => [...prev, data.file]);
-      }
+      const uploaded = await uploadNdaFiles(nda.id, arr);
+      setFiles((prev) => [...prev, ...uploaded]);
       toast.success(arr.length === 1 ? "File uploaded" : `${arr.length} files uploaded`);
       router.refresh();
     } catch (err) {
