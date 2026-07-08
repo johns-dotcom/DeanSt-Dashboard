@@ -440,7 +440,7 @@ function NdaFormPanel({
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <FieldLabel>Signatory name</FieldLabel>
+                <FieldLabel>Signatory name (optional)</FieldLabel>
                 <input
                   value={draft.ownerSignatoryName}
                   onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryName: e.target.value }))}
@@ -449,7 +449,7 @@ function NdaFormPanel({
                 />
               </div>
               <div>
-                <FieldLabel>Position</FieldLabel>
+                <FieldLabel>Position (optional)</FieldLabel>
                 <input
                   value={draft.ownerSignatoryPosition}
                   onChange={(e) => setDraft((p) => ({ ...p, ownerSignatoryPosition: e.target.value }))}

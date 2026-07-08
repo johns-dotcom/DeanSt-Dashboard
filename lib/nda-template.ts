@@ -56,8 +56,15 @@ export function buildNdaBody(f: NdaTemplateFields): string {
   const recipientClause = f.recipientAddress.trim()
     ? `${recipientName} (the "Recipient"), located at ${f.recipientAddress.trim()}`
     : `${recipientName} (the "Recipient")`;
-  const signatoryName = f.ownerSignatoryName.trim() || BLANK;
-  const signatoryPosition = f.ownerSignatoryPosition.trim() || BLANK;
+  // The signatory is optional: when the owner signs in their own name, leave
+  // the signatory fields blank and the "on behalf of" clause is dropped — the
+  // agreement is simply executed by the Owner. A signatory name with no
+  // position still reads cleanly (no dangling comma).
+  const sigName = f.ownerSignatoryName.trim();
+  const sigPosition = f.ownerSignatoryPosition.trim();
+  const executedBy = sigName
+    ? `${sigName}${sigPosition ? `, ${sigPosition},` : ""} on behalf of ${ownerName}`
+    : ownerName;
   const termYears = f.termYears || DEFAULT_TERM_YEARS;
   const survivalYears = f.survivalYears || DEFAULT_SURVIVAL_YEARS;
   const governingLaw = f.governingLaw.trim() || DEFAULT_GOVERNING_LAW;
@@ -91,7 +98,7 @@ export function buildNdaBody(f: NdaTemplateFields): string {
     paras.push(`XIII. ADDITIONAL TERMS. ${extra}`);
   }
   paras.push(
-    `${sigNum}. SIGNATORIES. This Agreement shall be executed by ${signatoryName}, ${signatoryPosition}, on behalf of ${ownerName} and ${recipientName} and delivered in the manner prescribed by law as of the date first written above.`
+    `${sigNum}. SIGNATORIES. This Agreement shall be executed by ${executedBy} and ${recipientName} and delivered in the manner prescribed by law as of the date first written above.`
   );
 
   return paras.join("\n\n");
