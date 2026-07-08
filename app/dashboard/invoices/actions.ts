@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { invoices, invoiceReceipts, workspaces, type LineItem } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
+import { formatInvoiceNumber, lowestAvailableNumber } from "@/lib/invoice-number";
 
 const lineItemSchema = z.object({
   description: z.string(),
@@ -34,14 +35,22 @@ function computeTotals(items: { quantity: number; rate: number; amount: number }
   return { subtotal: Number(subtotal.toFixed(2)), total: Number(total.toFixed(2)) };
 }
 
-async function nextInvoiceNumber(workspaceId: string): Promise<string> {
-  const [row] = await db
-    .update(workspaces)
-    .set({ invoiceSeq: sql`${workspaces.invoiceSeq} + 1` })
+// Assigns the lowest available invoice number within a transaction. Locks the
+// workspace row (FOR UPDATE) so concurrent creates serialize and can't pick the
+// same gap. Returns the formatted number.
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function assignNextNumber(tx: Tx, workspaceId: string): Promise<string> {
+  const [ws] = await tx
+    .select({ prefix: workspaces.invoicePrefix })
+    .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
-    .returning({ seq: workspaces.invoiceSeq, prefix: workspaces.invoicePrefix });
-  const used = row.seq - 1;
-  return `${row.prefix}${String(used).padStart(4, "0")}`;
+    .for("update");
+  const rows = await tx
+    .select({ n: invoices.invoiceNumber })
+    .from(invoices)
+    .where(eq(invoices.workspaceId, workspaceId));
+  return formatInvoiceNumber(ws?.prefix ?? "INV-", lowestAvailableNumber(rows.map((r) => r.n)));
 }
 
 export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
@@ -50,23 +59,26 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
 
   const session = await requireSession();
   const today = new Date().toISOString().slice(0, 10);
-  const number = await nextInvoiceNumber(session.workspace.id);
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
-  const [inserted] = await db.insert(invoices).values({
-    workspaceId: session.workspace.id,
-    invoiceNumber: number,
-    client: parsed.data.client,
-    type: parsed.data.type,
-    description: parsed.data.description ?? null,
-    lineItems: parsed.data.line_items,
-    subtotal: subtotal.toFixed(2),
-    taxRate: parsed.data.tax_rate.toFixed(2),
-    total: total.toFixed(2),
-    issuedDate: parsed.data.issued_date || today,
-    dueDate: parsed.data.due_date || null,
-    status: parsed.data.status,
-  }).returning({ id: invoices.id });
+  const inserted = await db.transaction(async (tx) => {
+    const number = await assignNextNumber(tx, session.workspace.id);
+    const [row] = await tx.insert(invoices).values({
+      workspaceId: session.workspace.id,
+      invoiceNumber: number,
+      client: parsed.data.client,
+      type: parsed.data.type,
+      description: parsed.data.description ?? null,
+      lineItems: parsed.data.line_items,
+      subtotal: subtotal.toFixed(2),
+      taxRate: parsed.data.tax_rate.toFixed(2),
+      total: total.toFixed(2),
+      issuedDate: parsed.data.issued_date || today,
+      dueDate: parsed.data.due_date || null,
+      status: parsed.data.status,
+    }).returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
+    return row;
+  });
 
   await logActivity({
     action: "invoice.created",
@@ -76,7 +88,7 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
     actorName: session.member.displayName,
     entityType: "invoice",
     entityId: inserted.id,
-    entityLabel: `${number} · ${parsed.data.client}`,
+    entityLabel: `${inserted.invoiceNumber} · ${parsed.data.client}`,
     metadata: { total },
   });
 
@@ -272,12 +284,7 @@ export async function combineInvoices(input: z.infer<typeof combineSchema>) {
   const today = new Date().toISOString().slice(0, 10);
 
   const newId = await db.transaction(async (tx) => {
-    const [ws] = await tx
-      .update(workspaces)
-      .set({ invoiceSeq: sql`${workspaces.invoiceSeq} + 1` })
-      .where(eq(workspaces.id, wsId))
-      .returning({ seq: workspaces.invoiceSeq, prefix: workspaces.invoicePrefix });
-    const number = `${ws.prefix}${String(ws.seq - 1).padStart(4, "0")}`;
+    const number = await assignNextNumber(tx, wsId);
 
     const [created] = await tx
       .insert(invoices)
