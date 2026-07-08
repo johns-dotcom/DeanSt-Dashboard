@@ -396,7 +396,7 @@ function NdaFormPanel({
           required
         />
 
-        <FieldLabel>Recipient address</FieldLabel>
+        <FieldLabel>Recipient address (optional)</FieldLabel>
         <textarea
           value={draft.recipientAddress}
           onChange={(e) => setDraft((p) => ({ ...p, recipientAddress: e.target.value }))}
@@ -429,7 +429,7 @@ function NdaFormPanel({
               style={inputStyle}
             />
 
-            <FieldLabel>Owner address</FieldLabel>
+            <FieldLabel>Owner address (optional)</FieldLabel>
             <textarea
               value={draft.ownerAddress}
               onChange={(e) => setDraft((p) => ({ ...p, ownerAddress: e.target.value }))}
