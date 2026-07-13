@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ndas } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { NdaPDF } from "@/lib/pdf/nda-pdf";
+import { getNdaClient } from "@/lib/nda-clients";
 
 export const runtime = "nodejs";
 
@@ -21,9 +22,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const buffer = await renderToBuffer(<NdaPDF nda={nda} />);
   // Filename carries both parties so a downloaded NDA is self-describing:
-  // NDA-Dean_St_Recordings-Ashwin_Jacob.pdf
+  // NDA-Dean_St-Ashwin_Jacob.pdf. The owner uses the client's short brand
+  // name (e.g. "Grimes"), not the full legal owner ("Claire Elise Boucher
+  // p/k/a Grimes").
   const safe = (s: string) => (s || "").replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "");
-  const owner = safe(nda.ownerName) || "Owner";
+  const owner = safe(getNdaClient(nda.clientSlug).name) || "Owner";
   const recipient = safe(nda.recipientName) || "Recipient";
   const filename = `NDA-${owner}-${recipient}.pdf`;
 
