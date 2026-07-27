@@ -15,9 +15,8 @@ const PAYABLE_TO = [
   "",
   "Account: 953162333",
   "Routing: 322271627",
-  "Zelle: (310) 755-8857",
   "",
-  "Payable to Jesse Allen",
+  "Payable to Jacob Allen",
 ];
 
 export function InvoicePreviewPanel({
