@@ -133,8 +133,7 @@ export function InvoicePDF({
             <Text style={styles.description}>Rancho Palos Verdes, CA, 90275</Text>
             <Text style={[styles.description, { marginTop: 6 }]}>Account: 953162333</Text>
             <Text style={styles.description}>Routing: 322271627</Text>
-            <Text style={styles.description}>Zelle: (310) 755-8857</Text>
-            <Text style={[styles.description, { marginTop: 6 }]}>Payable to Jesse Allen</Text>
+            <Text style={[styles.description, { marginTop: 6 }]}>Payable to Jacob Allen</Text>
           </View>
         </View>
 
