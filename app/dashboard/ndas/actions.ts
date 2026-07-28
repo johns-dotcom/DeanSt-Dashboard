@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { ndas, ndaFiles } from "@/lib/db/schema";
 import { requireSession, requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
-import { deleteObject } from "@/lib/r2";
+import { deleteObjectBestEffort } from "@/lib/r2";
 
 const ndaSchema = z.object({
   recipient_name: z.string().min(1, "Recipient name is required"),
@@ -131,7 +131,7 @@ export async function deleteNda(id: string) {
       .select({ filePath: ndaFiles.filePath })
       .from(ndaFiles)
       .where(eq(ndaFiles.ndaId, id));
-    await Promise.allSettled(files.map((f) => deleteObject(f.filePath)));
+    await Promise.all(files.map((f) => deleteObjectBestEffort(f.filePath, "deleteNda")));
 
     await db.delete(ndas).where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)));
 
@@ -201,7 +201,7 @@ export async function deleteNdaFile(id: string) {
     .limit(1);
   if (!doomed) return { error: "File not found" };
 
-  try { await deleteObject(doomed.filePath); } catch { /* swallow */ }
+  await deleteObjectBestEffort(doomed.filePath, "deleteNdaFile");
   await db.delete(ndaFiles).where(eq(ndaFiles.id, id));
 
   await logActivity({
