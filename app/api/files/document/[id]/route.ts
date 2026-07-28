@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { getObject } from "@/lib/r2";
+import { dispositionFor } from "@/lib/upload";
 
 export const runtime = "nodejs";
 
@@ -17,16 +18,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .limit(1);
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // ?inline=1 → render in the browser (PDFs, images); otherwise force download.
-  const inline = req.nextUrl.searchParams.get("inline");
-  const disposition = inline ? "inline" : "attachment";
+  // ?inline=1 → render in the browser, but only for render-safe types (PDF,
+  // raster images). Anything else is forced to download even when inline is
+  // asked for, so a stored HTML/SVG can't execute from our origin.
+  const requestedInline = req.nextUrl.searchParams.get("inline") === "1";
 
   try {
     const { body, contentType } = await getObject(doc.filePath);
+    const disposition = dispositionFor(requestedInline, contentType);
     return new NextResponse(new Uint8Array(body), {
       headers: {
         "content-type": contentType || "application/octet-stream",
         "content-disposition": `${disposition}; filename="${doc.fileName.replace(/"/g, "")}"`,
+        "x-content-type-options": "nosniff",
         "cache-control": "no-store",
       },
     });

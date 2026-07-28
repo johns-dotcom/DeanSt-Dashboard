@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { documents, documentFolders, clients } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { putObject } from "@/lib/r2";
+import { validateUpload } from "@/lib/upload";
 import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest) {
 
   const fileName = file instanceof File ? file.name : "file";
   const contentType = file.type || "application/octet-stream";
+
+  const invalid = validateUpload(file, fileName);
+  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const safeName = fileName.replace(/[^\w.\-]+/g, "_");
   const key = `${session.workspace.id}/${client}/${category}/${Date.now()}-${safeName}`;

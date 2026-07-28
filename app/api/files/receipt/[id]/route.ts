@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       headers: {
         "content-type": contentType || receipt.contentType || "application/octet-stream",
         "content-disposition": `attachment; filename="${receipt.fileName.replace(/"/g, "")}"`,
+        "x-content-type-options": "nosniff",
         "cache-control": "no-store",
       },
     });
