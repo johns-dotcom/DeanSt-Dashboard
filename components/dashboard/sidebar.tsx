@@ -67,10 +67,12 @@ function NavItem({
   label,
   Icon,
   active,
-}: NavEntry & { active: boolean }) {
+  onNavigate,
+}: NavEntry & { active: boolean; onNavigate?: () => void }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       style={{
         position: "relative",
         display: "flex",
@@ -114,33 +116,24 @@ function NavItem({
   );
 }
 
-export function Sidebar({
+/**
+ * The sidebar's inner content — logo, nav, and account footer. Shared by the
+ * desktop <aside> and the mobile drawer. onNavigate fires when a link is
+ * clicked so the mobile drawer can close itself.
+ */
+export function SidebarBody({
   member,
   userEmail,
+  onNavigate,
 }: {
   member: WorkspaceMember;
-  workspaceName: string;
   userEmail: string;
-  overdueCount?: number;
-  openTaskCount?: number;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
 
   return (
-    <aside
-      className="hidden md:flex"
-      style={{
-        width: 280,
-        flex: "none",
-        background: "var(--cream-light)",
-        borderRight: "1px solid var(--hair)",
-        padding: "32px 18px 24px",
-        flexDirection: "column",
-        gap: 24,
-        boxSizing: "border-box",
-        minHeight: "100vh",
-      }}
-    >
+    <>
       <div style={{ display: "flex", alignItems: "center", padding: "0 6px 8px" }}>
         <SignPlate size={1} />
       </div>
@@ -153,7 +146,7 @@ export function Sidebar({
           {WORKSPACE_NAV.map((item) => {
             const active =
               item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
-            return <NavItem key={item.href} {...item} active={active} />;
+            return <NavItem key={item.href} {...item} active={active} onNavigate={onNavigate} />;
           })}
         </div>
       </div>
@@ -167,6 +160,7 @@ export function Sidebar({
               label="Activity"
               Icon={ActivityIcon}
               active={pathname.startsWith("/dashboard/activity")}
+              onNavigate={onNavigate}
             />
           ) : null}
           <NavItem
@@ -174,6 +168,7 @@ export function Sidebar({
             label="Settings"
             Icon={GearIcon}
             active={pathname.startsWith("/dashboard/settings")}
+            onNavigate={onNavigate}
           />
         </div>
       </div>
@@ -238,6 +233,36 @@ export function Sidebar({
           Sign out
         </button>
       </div>
+    </>
+  );
+}
+
+export function Sidebar({
+  member,
+  userEmail,
+}: {
+  member: WorkspaceMember;
+  workspaceName: string;
+  userEmail: string;
+  overdueCount?: number;
+  openTaskCount?: number;
+}) {
+  return (
+    <aside
+      className="hidden md:flex"
+      style={{
+        width: 280,
+        flex: "none",
+        background: "var(--cream-light)",
+        borderRight: "1px solid var(--hair)",
+        padding: "32px 18px 24px",
+        flexDirection: "column",
+        gap: 24,
+        boxSizing: "border-box",
+        minHeight: "100vh",
+      }}
+    >
+      <SidebarBody member={member} userEmail={userEmail} />
     </aside>
   );
 }
