@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { invoices, invoiceReceipts } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { putObject } from "@/lib/r2";
+import { validateUpload } from "@/lib/upload";
 import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
     }
     const fileName = file instanceof File ? file.name : "receipt";
     const contentType = file.type || "application/octet-stream";
+
+    const invalid = validateUpload(file, fileName);
+    if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
     const [inv] = await db
       .select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber, client: invoices.client })
