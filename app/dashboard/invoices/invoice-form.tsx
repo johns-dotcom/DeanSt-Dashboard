@@ -8,6 +8,7 @@ import { Toggle } from "@/components/brand/toggle";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ReceiptsManager } from "./receipts-manager";
 import { createInvoice, updateInvoice } from "./actions";
+import { formatFileSize } from "@/lib/utils";
 import type { Invoice, LineItem } from "@/lib/db/schema";
 import type { DraftInvoice } from "./invoices-client";
 
@@ -453,11 +454,6 @@ export function InvoiceFormPanel({
   );
 }
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 // Stages receipt files locally (no upload). The invoice form uploads them
 // after the reimbursement is created, so nothing persists until you save.
@@ -535,7 +531,7 @@ function ReceiptStager({
                 <div style={{ fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>
                   {f.name}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>{fmtSize(f.size)} · staged</div>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>{formatFileSize(f.size)} · staged</div>
               </div>
               <button
                 type="button"

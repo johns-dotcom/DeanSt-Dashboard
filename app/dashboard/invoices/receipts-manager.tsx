@@ -9,14 +9,9 @@ import {
   deleteReceipt,
   getReceiptDownloadUrl,
 } from "./receipts-actions";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatFileSize } from "@/lib/utils";
 import type { InvoiceReceipt } from "@/lib/db/schema";
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 export function ReceiptsManager({
   invoiceId,
@@ -203,7 +198,7 @@ export function ReceiptsManager({
                   {r.fileName}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>
-                  {fmtSize(r.fileSize)} · {formatDate(r.uploadedAt, { month: "short", day: "numeric", year: "numeric" })}
+                  {formatFileSize(r.fileSize)} · {formatDate(r.uploadedAt, { month: "short", day: "numeric", year: "numeric" })}
                 </div>
               </div>
               <button
