@@ -17,9 +17,6 @@ export function AuthSettings({ workspace, disabled }: { workspace: Workspace; di
   function save() {
     startTransition(async () => {
       const r = await updateWorkspace({
-        name: workspace.name,
-        invoice_prefix: workspace.invoicePrefix,
-        default_payment_terms: workspace.defaultPaymentTerms,
         domain_restriction: restrict ? domain.trim() : null,
       });
       if ("error" in r && r.error) toast.error(r.error); else toast.success("Auth settings updated");

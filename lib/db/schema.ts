@@ -78,6 +78,17 @@ export const workspaces = pgTable("workspaces", {
   defaultPaymentTerms: text("default_payment_terms").notNull().default("Net 30"),
   domainRestriction: text("domain_restriction"),
   invoiceSeq: integer("invoice_seq").notNull().default(1),
+  // "Funds payable to" block shown on invoice previews and PDFs. Kept here (one
+  // source of truth) so the on-screen preview and the generated PDF can't drift
+  // apart — a wrong account/routing number reaching a client is a real hazard.
+  invoiceEntityName: text("invoice_entity_name").notNull().default("DEAN ST CO"),
+  invoiceContactName: text("invoice_contact_name").notNull().default("John Skead"),
+  invoiceContactEmail: text("invoice_contact_email").notNull().default("john@deanst.co"),
+  invoiceBankName: text("invoice_bank_name").notNull().default("JP Morgan Chase"),
+  invoiceBankAddress: text("invoice_bank_address").notNull().default("31250 Palos Verdes Dr W\nRancho Palos Verdes, CA, 90275"),
+  invoiceAccountNumber: text("invoice_account_number").notNull().default("953162333"),
+  invoiceRoutingNumber: text("invoice_routing_number").notNull().default("322271627"),
+  invoicePayeeName: text("invoice_payee_name").notNull().default("Jacob Allen"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

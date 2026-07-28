@@ -1,36 +1,38 @@
 import { SignPlate } from "@/components/brand/sign-plate";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import type { InvoicePaymentInfo } from "@/lib/invoice-payment";
 import type { DraftInvoice } from "./invoices-client";
 
-const PAYABLE_TO = [
-  "DEAN ST CO",
-  "",
-  "CONTACT: JOHN SKEAD",
-  "EMAIL: john@deanst.co",
-  "",
-  "PAYMENT METHOD",
-  "JP Morgan Chase",
-  "31250 Palos Verdes Dr W",
-  "Rancho Palos Verdes, CA, 90275",
-  "",
-  "Account: 953162333",
-  "Routing: 322271627",
-  "",
-  "Payable to Jacob Allen",
-];
+function payableToLines(p: InvoicePaymentInfo): string[] {
+  return [
+    p.entityName,
+    "",
+    `CONTACT: ${p.contactName}`,
+    `EMAIL: ${p.contactEmail}`,
+    "",
+    "PAYMENT METHOD",
+    p.bankName,
+    ...p.bankAddressLines,
+    "",
+    `Account: ${p.accountNumber}`,
+    `Routing: ${p.routingNumber}`,
+    "",
+    `Payable to ${p.payeeName}`,
+  ];
+}
 
 export function InvoicePreviewPanel({
   draft,
   number,
-  workspaceName,
+  payment,
   paymentTerms,
 }: {
   draft: DraftInvoice;
   number: string;
-  workspaceName: string;
+  payment: InvoicePaymentInfo;
   paymentTerms: string;
 }) {
-  void workspaceName;
+  const payableTo = payableToLines(payment);
   const subtotal = draft.lineItems.reduce(
     (s, i) => s + Number(i.amount || Number(i.quantity || 0) * Number(i.rate || 0)),
     0
@@ -96,7 +98,7 @@ export function InvoicePreviewPanel({
             Funds payable to:
           </div>
           <div style={{ marginTop: 8 }}>
-            {PAYABLE_TO.map((line, i) => (
+            {payableTo.map((line, i) => (
               <div key={i} className="mono" style={{ fontSize: 11, letterSpacing: "0.08em" }}>
                 {line || " "}
               </div>

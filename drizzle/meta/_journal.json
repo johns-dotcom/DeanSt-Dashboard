@@ -78,6 +78,13 @@
       "when": 1779849600000,
       "tag": "0010_nda_client_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779936000000,
+      "tag": "0011_invoice_payment_details",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/workspace";
 import { InvoicePDF } from "@/lib/pdf/invoice-pdf";
+import { paymentInfoFromWorkspace } from "@/lib/invoice-payment";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       invoice={invoice}
       workspaceName={session.workspace.name}
       paymentTerms={session.workspace.defaultPaymentTerms}
+      payment={paymentInfoFromWorkspace(session.workspace)}
     />
   );
 

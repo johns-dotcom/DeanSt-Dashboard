@@ -211,28 +211,45 @@ export async function removeMember(memberId: string) {
   return { ok: true as const };
 }
 
+// All fields optional — callers send only the subset they edit (the general
+// tab, the auth tab, and the invoice-payment section each patch their own
+// fields), so a form can never clobber a field it doesn't know about.
 const workspaceSchema = z.object({
-  name: z.string().min(1),
-  invoice_prefix: z.string().min(1).max(8),
-  default_payment_terms: z.string().min(1),
-  domain_restriction: z.string().nullable(),
+  name: z.string().min(1).optional(),
+  invoice_prefix: z.string().min(1).max(8).optional(),
+  default_payment_terms: z.string().min(1).optional(),
+  domain_restriction: z.string().nullable().optional(),
+  invoice_entity_name: z.string().min(1, "Entity name is required").optional(),
+  invoice_contact_name: z.string().min(1, "Contact name is required").optional(),
+  invoice_contact_email: z.string().min(1, "Contact email is required").optional(),
+  invoice_bank_name: z.string().min(1, "Bank name is required").optional(),
+  invoice_bank_address: z.string().optional(),
+  invoice_account_number: z.string().min(1, "Account number is required").optional(),
+  invoice_routing_number: z.string().min(1, "Routing number is required").optional(),
+  invoice_payee_name: z.string().min(1, "Payee name is required").optional(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
   const session = await requireAdmin();
   const parsed = workspaceSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const d = parsed.data;
 
-  await db
-    .update(workspaces)
-    .set({
-      name: parsed.data.name,
-      invoicePrefix: parsed.data.invoice_prefix,
-      defaultPaymentTerms: parsed.data.default_payment_terms,
-      domainRestriction: parsed.data.domain_restriction,
-      updatedAt: new Date(),
-    })
-    .where(eq(workspaces.id, session.workspace.id));
+  const set: Partial<typeof workspaces.$inferInsert> = { updatedAt: new Date() };
+  if (d.name !== undefined) set.name = d.name;
+  if (d.invoice_prefix !== undefined) set.invoicePrefix = d.invoice_prefix;
+  if (d.default_payment_terms !== undefined) set.defaultPaymentTerms = d.default_payment_terms;
+  if (d.domain_restriction !== undefined) set.domainRestriction = d.domain_restriction;
+  if (d.invoice_entity_name !== undefined) set.invoiceEntityName = d.invoice_entity_name;
+  if (d.invoice_contact_name !== undefined) set.invoiceContactName = d.invoice_contact_name;
+  if (d.invoice_contact_email !== undefined) set.invoiceContactEmail = d.invoice_contact_email;
+  if (d.invoice_bank_name !== undefined) set.invoiceBankName = d.invoice_bank_name;
+  if (d.invoice_bank_address !== undefined) set.invoiceBankAddress = d.invoice_bank_address;
+  if (d.invoice_account_number !== undefined) set.invoiceAccountNumber = d.invoice_account_number;
+  if (d.invoice_routing_number !== undefined) set.invoiceRoutingNumber = d.invoice_routing_number;
+  if (d.invoice_payee_name !== undefined) set.invoicePayeeName = d.invoice_payee_name;
+
+  await db.update(workspaces).set(set).where(eq(workspaces.id, session.workspace.id));
 
   await logActivity({
     action: "workspace.updated",
@@ -242,7 +259,7 @@ export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
     actorName: session.member.displayName,
     entityType: "workspace",
     entityId: session.workspace.id,
-    entityLabel: parsed.data.name,
+    entityLabel: d.name ?? session.workspace.name,
   });
 
   revalidatePath("/dashboard/settings");
