@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, asc, max, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { invoiceClientPages } from "@/lib/db/schema";
@@ -124,14 +124,6 @@ export async function deleteClientPage(id: string) {
 
   revalidatePath("/dashboard/invoices", "layout");
   return { ok: true as const };
-}
-
-export async function listClientPages(workspaceId: string) {
-  return db
-    .select()
-    .from(invoiceClientPages)
-    .where(eq(invoiceClientPages.workspaceId, workspaceId))
-    .orderBy(asc(invoiceClientPages.sortOrder), asc(invoiceClientPages.name));
 }
 
 export async function navigateToClientPage(slug: string) {
