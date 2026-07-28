@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { validateUpload, dispositionFor, MAX_UPLOAD_BYTES } from "@/lib/upload";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { validateUpload, dispositionFor, MAX_UPLOAD_BYTES } from "../lib/upload.ts";
 
 // Minimal Blob-like stand-in: validateUpload only reads size and type.
 function fakeFile(size: number, type: string): Blob {
@@ -8,59 +9,60 @@ function fakeFile(size: number, type: string): Blob {
 
 describe("validateUpload", () => {
   it("accepts a normal PDF", () => {
-    expect(validateUpload(fakeFile(1000, "application/pdf"), "contract.pdf")).toBeNull();
+    assert.equal(validateUpload(fakeFile(1000, "application/pdf"), "contract.pdf"), null);
   });
 
   it("accepts common images and office docs", () => {
-    expect(validateUpload(fakeFile(1000, "image/png"), "scan.png")).toBeNull();
-    expect(
+    assert.equal(validateUpload(fakeFile(1000, "image/png"), "scan.png"), null);
+    assert.equal(
       validateUpload(
         fakeFile(1000, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         "budget.xlsx"
-      )
-    ).toBeNull();
+      ),
+      null
+    );
   });
 
   it("rejects an empty file", () => {
-    expect(validateUpload(fakeFile(0, "application/pdf"), "empty.pdf")).toMatch(/empty/i);
+    assert.match(validateUpload(fakeFile(0, "application/pdf"), "empty.pdf") ?? "", /empty/i);
   });
 
   it("rejects files over the size cap", () => {
-    expect(validateUpload(fakeFile(MAX_UPLOAD_BYTES + 1, "application/pdf"), "big.pdf")).toMatch(/too large/i);
+    assert.match(validateUpload(fakeFile(MAX_UPLOAD_BYTES + 1, "application/pdf"), "big.pdf") ?? "", /too large/i);
   });
 
   it("rejects HTML by content type", () => {
-    expect(validateUpload(fakeFile(100, "text/html"), "page.pdf")).toMatch(/allowed/i);
+    assert.match(validateUpload(fakeFile(100, "text/html"), "page.pdf") ?? "", /allowed/i);
   });
 
   it("rejects SVG/HTML by extension even if the type is spoofed", () => {
-    expect(validateUpload(fakeFile(100, "application/pdf"), "evil.svg")).toMatch(/allowed/i);
-    expect(validateUpload(fakeFile(100, "image/png"), "evil.html")).toMatch(/allowed/i);
+    assert.match(validateUpload(fakeFile(100, "application/pdf"), "evil.svg") ?? "", /allowed/i);
+    assert.match(validateUpload(fakeFile(100, "image/png"), "evil.html") ?? "", /allowed/i);
   });
 
-  it("accepts octet-stream (never rendered inline) but not with a dangerous extension", () => {
-    expect(validateUpload(fakeFile(100, "application/octet-stream"), "data.bin")).toBeNull();
-    expect(validateUpload(fakeFile(100, "application/octet-stream"), "data.html")).toMatch(/allowed/i);
+  it("accepts octet-stream but not with a dangerous extension", () => {
+    assert.equal(validateUpload(fakeFile(100, "application/octet-stream"), "data.bin"), null);
+    assert.match(validateUpload(fakeFile(100, "application/octet-stream"), "data.html") ?? "", /allowed/i);
   });
 
   it("ignores charset parameters on the content type", () => {
-    expect(validateUpload(fakeFile(100, "text/plain; charset=utf-8"), "notes.txt")).toBeNull();
+    assert.equal(validateUpload(fakeFile(100, "text/plain; charset=utf-8"), "notes.txt"), null);
   });
 });
 
 describe("dispositionFor", () => {
   it("forces attachment when inline is not requested", () => {
-    expect(dispositionFor(false, "application/pdf")).toBe("attachment");
+    assert.equal(dispositionFor(false, "application/pdf"), "attachment");
   });
 
   it("allows inline for render-safe types when requested", () => {
-    expect(dispositionFor(true, "application/pdf")).toBe("inline");
-    expect(dispositionFor(true, "image/png")).toBe("inline");
+    assert.equal(dispositionFor(true, "application/pdf"), "inline");
+    assert.equal(dispositionFor(true, "image/png"), "inline");
   });
 
   it("forces attachment for non-render-safe types even when inline is requested", () => {
-    expect(dispositionFor(true, "text/html")).toBe("attachment");
-    expect(dispositionFor(true, "image/svg+xml")).toBe("attachment");
-    expect(dispositionFor(true, "application/octet-stream")).toBe("attachment");
+    assert.equal(dispositionFor(true, "text/html"), "attachment");
+    assert.equal(dispositionFor(true, "image/svg+xml"), "attachment");
+    assert.equal(dispositionFor(true, "application/octet-stream"), "attachment");
   });
 });

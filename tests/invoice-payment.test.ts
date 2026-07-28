@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { paymentInfoFromWorkspace } from "@/lib/invoice-payment";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { paymentInfoFromWorkspace } from "../lib/invoice-payment.ts";
 import type { Workspace } from "@/lib/db/schema";
 
 function workspace(overrides: Partial<Workspace> = {}): Workspace {
@@ -19,15 +20,15 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 describe("paymentInfoFromWorkspace", () => {
   it("maps workspace columns to the payment info shape", () => {
     const p = paymentInfoFromWorkspace(workspace());
-    expect(p.entityName).toBe("DEAN ST CO");
-    expect(p.payeeName).toBe("Jacob Allen");
-    expect(p.accountNumber).toBe("953162333");
-    expect(p.routingNumber).toBe("322271627");
+    assert.equal(p.entityName, "DEAN ST CO");
+    assert.equal(p.payeeName, "Jacob Allen");
+    assert.equal(p.accountNumber, "953162333");
+    assert.equal(p.routingNumber, "322271627");
   });
 
   it("splits the bank address into non-empty trimmed lines", () => {
     const p = paymentInfoFromWorkspace(workspace());
-    expect(p.bankAddressLines).toEqual([
+    assert.deepEqual(p.bankAddressLines, [
       "31250 Palos Verdes Dr W",
       "Rancho Palos Verdes, CA, 90275",
     ]);
@@ -35,6 +36,6 @@ describe("paymentInfoFromWorkspace", () => {
 
   it("drops blank address lines", () => {
     const p = paymentInfoFromWorkspace(workspace({ invoiceBankAddress: "Line 1\n\n  \nLine 2" }));
-    expect(p.bankAddressLines).toEqual(["Line 1", "Line 2"]);
+    assert.deepEqual(p.bankAddressLines, ["Line 1", "Line 2"]);
   });
 });
