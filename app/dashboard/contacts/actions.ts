@@ -88,22 +88,27 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
 
 export async function deleteContact(id: string) {
   const session = await requireEditor();
-  const [doomed] = await db
-    .select({ name: contacts.name })
-    .from(contacts)
-    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)))
-    .limit(1);
-  await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
-  await logActivity({
-    action: "contact.deleted",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "contact",
-    entityId: id,
-    entityLabel: doomed?.name ?? null,
-  });
-  revalidatePath("/dashboard/contacts");
-  return { ok: true as const };
+  try {
+    const [doomed] = await db
+      .select({ name: contacts.name })
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)))
+      .limit(1);
+    await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
+    await logActivity({
+      action: "contact.deleted",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "contact",
+      entityId: id,
+      entityLabel: doomed?.name ?? null,
+    });
+    revalidatePath("/dashboard/contacts");
+    return { ok: true as const };
+  } catch (err) {
+    console.error("[deleteContact] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't delete the contact. Please try again." };
+  }
 }

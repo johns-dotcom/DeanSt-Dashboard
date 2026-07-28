@@ -47,10 +47,14 @@ export function DealsClient({ deals }: { deals: Deal[] }) {
   function handleDelete(deal: Deal) {
     if (!confirm(`Delete deal with ${deal.counterparty}?`)) return;
     startTransition(async () => {
-      const r = await deleteDeal(deal.id);
-      void r;
-      toast.success("Deal deleted");
-      setEditing(null);
+      try {
+        const r = await deleteDeal(deal.id);
+        if (r && "error" in r && r.error) { toast.error(r.error); return; }
+        toast.success("Deal deleted");
+        setEditing(null);
+      } catch {
+        toast.error("Couldn't delete deal");
+      }
     });
   }
 

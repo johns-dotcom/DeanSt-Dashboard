@@ -59,10 +59,14 @@ export function ContactForm({
     if (!contact) return;
     if (!confirm(`Delete ${contact.name}?`)) return;
     startTransition(async () => {
-      const r = await deleteContact(contact.id);
-      void r;
-      toast.success("Contact deleted");
-      onDone();
+      try {
+        const r = await deleteContact(contact.id);
+        if (r && "error" in r && r.error) { toast.error(r.error); return; }
+        toast.success("Contact deleted");
+        onDone();
+      } catch {
+        toast.error("Couldn't delete contact");
+      }
     });
   }
 

@@ -119,34 +119,39 @@ export async function updateNda(id: string, input: z.infer<typeof ndaSchema>) {
 
 export async function deleteNda(id: string) {
   const session = await requireEditor();
-  const [doomed] = await db
-    .select({ recipientName: ndas.recipientName })
-    .from(ndas)
-    .where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)))
-    .limit(1);
+  try {
+    const [doomed] = await db
+      .select({ recipientName: ndas.recipientName })
+      .from(ndas)
+      .where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)))
+      .limit(1);
 
-  // Best-effort R2 cleanup of any attached files
-  const files = await db
-    .select({ filePath: ndaFiles.filePath })
-    .from(ndaFiles)
-    .where(eq(ndaFiles.ndaId, id));
-  await Promise.allSettled(files.map((f) => deleteObject(f.filePath)));
+    // Best-effort R2 cleanup of any attached files
+    const files = await db
+      .select({ filePath: ndaFiles.filePath })
+      .from(ndaFiles)
+      .where(eq(ndaFiles.ndaId, id));
+    await Promise.allSettled(files.map((f) => deleteObject(f.filePath)));
 
-  await db.delete(ndas).where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)));
+    await db.delete(ndas).where(and(eq(ndas.id, id), eq(ndas.workspaceId, session.workspace.id)));
 
-  await logActivity({
-    action: "document.deleted",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "nda",
-    entityId: id,
-    entityLabel: doomed?.recipientName ? `NDA · ${doomed.recipientName}` : null,
-  });
+    await logActivity({
+      action: "document.deleted",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "nda",
+      entityId: id,
+      entityLabel: doomed?.recipientName ? `NDA · ${doomed.recipientName}` : null,
+    });
 
-  revalidatePath("/dashboard/ndas");
-  return { ok: true as const };
+    revalidatePath("/dashboard/ndas");
+    return { ok: true as const };
+  } catch (err) {
+    console.error("[deleteNda] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't delete the NDA. Please try again." };
+  }
 }
 
 export async function setNdaSigned(id: string, signed: boolean) {

@@ -153,10 +153,14 @@ export function InvoicesClient({
   function handleDelete(inv: Invoice) {
     if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return;
     startTransition(async () => {
-      const r = await deleteInvoice(inv.id);
-      void r;
-      toast.success("Invoice deleted");
-      if (editingId === inv.id) startNew();
+      try {
+        const r = await deleteInvoice(inv.id);
+        if (r && "error" in r && r.error) { toast.error(r.error); return; }
+        toast.success("Invoice deleted");
+        if (editingId === inv.id) startNew();
+      } catch {
+        toast.error("Couldn't delete invoice");
+      }
     });
   }
 

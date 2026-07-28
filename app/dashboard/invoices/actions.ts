@@ -61,40 +61,45 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
   const today = new Date().toISOString().slice(0, 10);
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
-  const inserted = await db.transaction(async (tx) => {
-    const number = await assignNextNumber(tx, session.workspace.id);
-    const [row] = await tx.insert(invoices).values({
+  try {
+    const inserted = await db.transaction(async (tx) => {
+      const number = await assignNextNumber(tx, session.workspace.id);
+      const [row] = await tx.insert(invoices).values({
+        workspaceId: session.workspace.id,
+        invoiceNumber: number,
+        client: parsed.data.client,
+        type: parsed.data.type,
+        description: parsed.data.description ?? null,
+        lineItems: parsed.data.line_items,
+        subtotal: subtotal.toFixed(2),
+        taxRate: parsed.data.tax_rate.toFixed(2),
+        total: total.toFixed(2),
+        issuedDate: parsed.data.issued_date || today,
+        dueDate: parsed.data.due_date || null,
+        status: parsed.data.status,
+      }).returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
+      return row;
+    });
+
+    await logActivity({
+      action: "invoice.created",
       workspaceId: session.workspace.id,
-      invoiceNumber: number,
-      client: parsed.data.client,
-      type: parsed.data.type,
-      description: parsed.data.description ?? null,
-      lineItems: parsed.data.line_items,
-      subtotal: subtotal.toFixed(2),
-      taxRate: parsed.data.tax_rate.toFixed(2),
-      total: total.toFixed(2),
-      issuedDate: parsed.data.issued_date || today,
-      dueDate: parsed.data.due_date || null,
-      status: parsed.data.status,
-    }).returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
-    return row;
-  });
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "invoice",
+      entityId: inserted.id,
+      entityLabel: `${inserted.invoiceNumber} · ${parsed.data.client}`,
+      metadata: { total },
+    });
 
-  await logActivity({
-    action: "invoice.created",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "invoice",
-    entityId: inserted.id,
-    entityLabel: `${inserted.invoiceNumber} · ${parsed.data.client}`,
-    metadata: { total },
-  });
-
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/invoices");
-  return { ok: true as const, id: inserted.id };
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/invoices");
+    return { ok: true as const, id: inserted.id };
+  } catch (err) {
+    console.error("[createInvoice] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't save the invoice. Please try again." };
+  }
 }
 
 export async function updateInvoice(id: string, input: z.infer<typeof invoiceSchema>) {
@@ -104,36 +109,41 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
   const session = await requireEditor();
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
-  await db
-    .update(invoices)
-    .set({
-      client: parsed.data.client,
-      type: parsed.data.type,
-      description: parsed.data.description ?? null,
-      lineItems: parsed.data.line_items,
-      subtotal: subtotal.toFixed(2),
-      taxRate: parsed.data.tax_rate.toFixed(2),
-      total: total.toFixed(2),
-      issuedDate: parsed.data.issued_date || undefined,
-      dueDate: parsed.data.due_date || null,
-      status: parsed.data.status,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
+  try {
+    await db
+      .update(invoices)
+      .set({
+        client: parsed.data.client,
+        type: parsed.data.type,
+        description: parsed.data.description ?? null,
+        lineItems: parsed.data.line_items,
+        subtotal: subtotal.toFixed(2),
+        taxRate: parsed.data.tax_rate.toFixed(2),
+        total: total.toFixed(2),
+        issuedDate: parsed.data.issued_date || undefined,
+        dueDate: parsed.data.due_date || null,
+        status: parsed.data.status,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
 
-  await logActivity({
-    action: "invoice.updated",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "invoice",
-    entityId: id,
-    entityLabel: parsed.data.client,
-  });
+    await logActivity({
+      action: "invoice.updated",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: parsed.data.client,
+    });
 
-  revalidatePath("/dashboard/invoices");
-  return { ok: true as const };
+    revalidatePath("/dashboard/invoices");
+    return { ok: true as const };
+  } catch (err) {
+    console.error("[updateInvoice] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't update the invoice. Please try again." };
+  }
 }
 
 export async function setInvoiceSent(id: string, sent: boolean) {
@@ -222,26 +232,31 @@ export async function setInvoiceStatus(id: string, status: "draft" | "pending" |
 
 export async function deleteInvoice(id: string) {
   const session = await requireEditor();
-  const [doomed] = await db
-    .select({ invoiceNumber: invoices.invoiceNumber, client: invoices.client })
-    .from(invoices)
-    .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)))
-    .limit(1);
-  await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
+  try {
+    const [doomed] = await db
+      .select({ invoiceNumber: invoices.invoiceNumber, client: invoices.client })
+      .from(invoices)
+      .where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)))
+      .limit(1);
+    await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.workspaceId, session.workspace.id)));
 
-  await logActivity({
-    action: "invoice.deleted",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "invoice",
-    entityId: id,
-    entityLabel: doomed ? `${doomed.invoiceNumber} · ${doomed.client}` : null,
-  });
+    await logActivity({
+      action: "invoice.deleted",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: doomed ? `${doomed.invoiceNumber} · ${doomed.client}` : null,
+    });
 
-  revalidatePath("/dashboard/invoices");
-  return { ok: true as const };
+    revalidatePath("/dashboard/invoices");
+    return { ok: true as const };
+  } catch (err) {
+    console.error("[deleteInvoice] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't delete the invoice. Please try again." };
+  }
 }
 
 const combineSchema = z.object({ ids: z.array(z.string().uuid()).min(2, "Select at least two invoices") });
@@ -282,50 +297,55 @@ export async function combineInvoices(input: z.infer<typeof combineSchema>) {
   const description = rows.map((r) => r.description?.trim()).find(Boolean) ?? null;
   const today = new Date().toISOString().slice(0, 10);
 
-  const newId = await db.transaction(async (tx) => {
-    const number = await assignNextNumber(tx, wsId);
+  try {
+    const newId = await db.transaction(async (tx) => {
+      const number = await assignNextNumber(tx, wsId);
 
-    const [created] = await tx
-      .insert(invoices)
-      .values({
-        workspaceId: wsId,
-        invoiceNumber: number,
-        client,
-        type,
-        description,
-        lineItems,
-        subtotal: subtotal.toFixed(2),
-        taxRate: taxRate.toFixed(2),
-        total: total.toFixed(2),
-        issuedDate: today,
-        dueDate,
-        status: "draft",
-      })
-      .returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
+      const [created] = await tx
+        .insert(invoices)
+        .values({
+          workspaceId: wsId,
+          invoiceNumber: number,
+          client,
+          type,
+          description,
+          lineItems,
+          subtotal: subtotal.toFixed(2),
+          taxRate: taxRate.toFixed(2),
+          total: total.toFixed(2),
+          issuedDate: today,
+          dueDate,
+          status: "draft",
+        })
+        .returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
 
-    // Move any attached receipts onto the combined invoice, then remove originals.
-    await tx
-      .update(invoiceReceipts)
-      .set({ invoiceId: created.id })
-      .where(and(eq(invoiceReceipts.workspaceId, wsId), inArray(invoiceReceipts.invoiceId, parsed.data.ids)));
-    await tx.delete(invoices).where(and(eq(invoices.workspaceId, wsId), inArray(invoices.id, parsed.data.ids)));
+      // Move any attached receipts onto the combined invoice, then remove originals.
+      await tx
+        .update(invoiceReceipts)
+        .set({ invoiceId: created.id })
+        .where(and(eq(invoiceReceipts.workspaceId, wsId), inArray(invoiceReceipts.invoiceId, parsed.data.ids)));
+      await tx.delete(invoices).where(and(eq(invoices.workspaceId, wsId), inArray(invoices.id, parsed.data.ids)));
 
-    return { id: created.id, number };
-  });
+      return { id: created.id, number };
+    });
 
-  await logActivity({
-    action: "invoice.created",
-    workspaceId: wsId,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "invoice",
-    entityId: newId.id,
-    entityLabel: `${newId.number} · ${client} · combined ${rows.length} invoices`,
-    metadata: { total, combinedFrom: rows.map((r) => r.invoiceNumber) },
-  });
+    await logActivity({
+      action: "invoice.created",
+      workspaceId: wsId,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "invoice",
+      entityId: newId.id,
+      entityLabel: `${newId.number} · ${client} · combined ${rows.length} invoices`,
+      metadata: { total, combinedFrom: rows.map((r) => r.invoiceNumber) },
+    });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/invoices");
-  return { ok: true as const, id: newId.id, number: newId.number };
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/invoices");
+    return { ok: true as const, id: newId.id, number: newId.number };
+  } catch (err) {
+    console.error("[combineInvoices] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't combine the invoices. Please try again." };
+  }
 }
