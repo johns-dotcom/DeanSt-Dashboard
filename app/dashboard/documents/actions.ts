@@ -5,12 +5,12 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { documents, documentFolders, clients } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireSession, requireEditor } from "@/lib/auth/workspace";
 import { deleteObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
 export async function deleteDocument(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doc] = await db
     .select()
     .from(documents)
@@ -47,7 +47,7 @@ export async function renameDocument(input: z.infer<typeof renameDocInput>) {
   const parsed = renameDocInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const newName = parsed.data.fileName.trim();
   if (!newName) return { error: "Name is required" };
 
@@ -102,7 +102,7 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
   const parsed = createFolderInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const name = parsed.data.name.trim();
   const parentId = parsed.data.parentId ?? null;
 
@@ -166,7 +166,7 @@ export async function renameDocumentFolder(input: z.infer<typeof renameInput>) {
   const parsed = renameInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const newName = parsed.data.name.trim();
 
   const [folder] = await db
@@ -197,7 +197,7 @@ export async function renameDocumentFolder(input: z.infer<typeof renameInput>) {
 }
 
 export async function deleteDocumentFolder(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [folder] = await db
     .select()
     .from(documentFolders)
@@ -244,7 +244,7 @@ export async function moveDocument(input: z.infer<typeof moveDocInput>) {
   const parsed = moveDocInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doc] = await db
     .select()
     .from(documents)
@@ -285,7 +285,7 @@ export async function moveFolder(input: z.infer<typeof moveFolderInput>) {
   const parsed = moveFolderInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const all = await db
     .select()
     .from(documentFolders)

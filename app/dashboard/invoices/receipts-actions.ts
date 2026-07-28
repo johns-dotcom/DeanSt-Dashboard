@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoiceReceipts } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireSession, requireEditor } from "@/lib/auth/workspace";
 import { deleteObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
@@ -18,7 +18,7 @@ export async function listReceipts(invoiceId: string) {
 }
 
 export async function deleteReceipt(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select()
     .from(invoiceReceipts)

@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 import type { TaskPriority, TaskStatus } from "@/lib/db/schema";
 
@@ -22,7 +22,7 @@ export async function createTask(input: z.infer<typeof taskInput>) {
   const parsed = taskInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [inserted] = await db.insert(tasks).values({
     workspaceId: session.workspace.id,
@@ -53,7 +53,7 @@ export async function createTask(input: z.infer<typeof taskInput>) {
 }
 
 export async function toggleTaskStatus(taskId: string, status: TaskStatus) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [task] = await db
     .select({ title: tasks.title })
     .from(tasks)
@@ -79,7 +79,7 @@ export async function toggleTaskStatus(taskId: string, status: TaskStatus) {
 }
 
 export async function deleteTask(taskId: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [task] = await db
     .select({ title: tasks.title })
     .from(tasks)
@@ -104,7 +104,7 @@ export async function updateTask(
   taskId: string,
   patch: { title?: string; priority?: TaskPriority; due_date?: string | null; assigned_to?: string | null }
 ) {
-  const session = await requireSession();
+  const session = await requireEditor();
   await db
     .update(tasks)
     .set({

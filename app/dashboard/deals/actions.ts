@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
 const dealSchema = z.object({
@@ -23,7 +23,7 @@ export async function createDeal(input: z.infer<typeof dealSchema>) {
   const parsed = dealSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [inserted] = await db.insert(deals).values({
     workspaceId: session.workspace.id,
@@ -57,7 +57,7 @@ export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) 
   const parsed = dealSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   await db
     .update(deals)
@@ -90,7 +90,7 @@ export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) 
 }
 
 export async function deleteDeal(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select({ artist: deals.artist, counterparty: deals.counterparty })
     .from(deals)

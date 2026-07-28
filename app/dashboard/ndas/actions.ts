@@ -5,7 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ndas, ndaFiles } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireSession, requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 import { deleteObject } from "@/lib/r2";
 
@@ -31,7 +31,7 @@ export async function createNda(input: z.infer<typeof ndaSchema>) {
   const parsed = ndaSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [inserted] = await db
     .insert(ndas)
@@ -75,7 +75,7 @@ export async function updateNda(id: string, input: z.infer<typeof ndaSchema>) {
   const parsed = ndaSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [updated] = await db
     .update(ndas)
@@ -118,7 +118,7 @@ export async function updateNda(id: string, input: z.infer<typeof ndaSchema>) {
 }
 
 export async function deleteNda(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select({ recipientName: ndas.recipientName })
     .from(ndas)
@@ -150,7 +150,7 @@ export async function deleteNda(id: string) {
 }
 
 export async function setNdaSigned(id: string, signed: boolean) {
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [updated] = await db
     .update(ndas)
@@ -188,7 +188,7 @@ export async function listNdaFiles(ndaId: string) {
 }
 
 export async function deleteNdaFile(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select()
     .from(ndaFiles)
