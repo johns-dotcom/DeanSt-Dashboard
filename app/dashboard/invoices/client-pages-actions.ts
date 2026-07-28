@@ -6,7 +6,7 @@ import { and, eq, asc, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { invoiceClientPages } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
 function slugify(name: string): string {
@@ -36,7 +36,7 @@ export async function createClientPage(input: z.infer<typeof createSchema>) {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const name = parsed.data.name.trim();
   const slug = await uniqueSlug(session.workspace.id, slugify(name));
 
@@ -75,7 +75,7 @@ export async function renameClientPage(input: z.infer<typeof renameSchema>) {
   const parsed = renameSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const name = parsed.data.name.trim();
   const newSlug = await uniqueSlug(session.workspace.id, slugify(name), parsed.data.id);
 
@@ -103,7 +103,7 @@ export async function renameClientPage(input: z.infer<typeof renameSchema>) {
 }
 
 export async function deleteClientPage(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [removed] = await db
     .delete(invoiceClientPages)
     .where(and(eq(invoiceClientPages.id, id), eq(invoiceClientPages.workspaceId, session.workspace.id)))

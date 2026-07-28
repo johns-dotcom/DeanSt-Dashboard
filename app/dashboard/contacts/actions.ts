@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
 const contactSchema = z.object({
@@ -23,7 +23,7 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [inserted] = await db.insert(contacts).values({
     workspaceId: session.workspace.id,
@@ -55,7 +55,7 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   await db
     .update(contacts)
     .set({
@@ -87,7 +87,7 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
 }
 
 export async function deleteContact(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select({ name: contacts.name })
     .from(contacts)

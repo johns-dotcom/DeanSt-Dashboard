@@ -5,7 +5,7 @@ import { and, asc, count, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { clients, documents, documentFolders } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 
 function slugify(name: string): string {
@@ -37,7 +37,7 @@ export async function createClient(input: z.infer<typeof createSchema>) {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const name = parsed.data.name.trim();
 
   const [dupe] = await db
@@ -79,7 +79,7 @@ export async function renameClient(input: z.infer<typeof renameSchema>) {
   const parsed = renameSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const name = parsed.data.name.trim();
 
   const [client] = await db
@@ -123,7 +123,7 @@ export async function renameClient(input: z.infer<typeof renameSchema>) {
 }
 
 export async function deleteClient(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [client] = await db
     .select()
     .from(clients)

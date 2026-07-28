@@ -62,6 +62,19 @@ export async function requireAdmin(): Promise<SessionContext> {
   return ctx;
 }
 
+/**
+ * Like requireSession, but rejects view-only members. Use in every mutating
+ * server action so a view_only member can read but never write. Fails closed
+ * (throws) — the same posture as requireAdmin.
+ */
+export async function requireEditor(): Promise<SessionContext> {
+  const ctx = await requireSession();
+  if (ctx.member.role === "view_only") {
+    throw new Error("View-only members can't make changes");
+  }
+  return ctx;
+}
+
 export function initialsFor(name: string): string {
   return (
     name

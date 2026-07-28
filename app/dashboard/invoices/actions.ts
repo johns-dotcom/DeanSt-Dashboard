@@ -5,7 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { invoices, invoiceReceipts, workspaces, type LineItem } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth/workspace";
+import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 import { formatInvoiceNumber, lowestAvailableNumber } from "@/lib/invoice-number";
 
@@ -57,7 +57,7 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const today = new Date().toISOString().slice(0, 10);
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
@@ -101,7 +101,7 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
+  const session = await requireEditor();
   const { subtotal, total } = computeTotals(parsed.data.line_items, parsed.data.tax_rate);
 
   await db
@@ -137,7 +137,7 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
 }
 
 export async function setInvoiceSent(id: string, sent: boolean) {
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [updated] = await db
     .update(invoices)
@@ -165,7 +165,7 @@ export async function setInvoiceSent(id: string, sent: boolean) {
 }
 
 export async function setInvoiceType(id: string, type: "invoice" | "reimbursement") {
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [updated] = await db
     .update(invoices)
@@ -193,7 +193,7 @@ export async function setInvoiceType(id: string, type: "invoice" | "reimbursemen
 }
 
 export async function setInvoiceStatus(id: string, status: "draft" | "pending" | "overdue" | "paid") {
-  const session = await requireSession();
+  const session = await requireEditor();
 
   const [updated] = await db
     .update(invoices)
@@ -221,7 +221,7 @@ export async function setInvoiceStatus(id: string, status: "draft" | "pending" |
 }
 
 export async function deleteInvoice(id: string) {
-  const session = await requireSession();
+  const session = await requireEditor();
   const [doomed] = await db
     .select({ invoiceNumber: invoices.invoiceNumber, client: invoices.client })
     .from(invoices)
@@ -256,8 +256,7 @@ export async function combineInvoices(input: z.infer<typeof combineSchema>) {
   const parsed = combineSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireSession();
-  if (session.member.role === "view_only") return { error: "View-only members can't combine invoices" };
+  const session = await requireEditor();
   const wsId = session.workspace.id;
 
   const rows = await db
