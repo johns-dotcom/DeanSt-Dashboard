@@ -21,6 +21,7 @@ import {
 import { Check } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice, InvoiceClientPage, LineItem } from "@/lib/db/schema";
+import type { InvoicePaymentInfo } from "@/lib/invoice-payment";
 
 export interface DraftInvoice {
   client: string;
@@ -58,6 +59,7 @@ export function InvoicesClient({
   invoices,
   workspaceName,
   paymentTerms,
+  payment,
   nextInvoiceNumber,
   clientPages,
   activeClientSlug,
@@ -67,6 +69,7 @@ export function InvoicesClient({
   invoices: Invoice[];
   workspaceName: string;
   paymentTerms: string;
+  payment: InvoicePaymentInfo;
   nextInvoiceNumber: string;
   clientPages: InvoiceClientPage[];
   activeClientSlug: string | null;
@@ -179,7 +182,7 @@ export function InvoicesClient({
         <InvoicePreviewPanel
           draft={draft}
           number={displayNumber}
-          workspaceName={workspaceName}
+          payment={payment}
           paymentTerms={paymentTerms}
         />
       </div>

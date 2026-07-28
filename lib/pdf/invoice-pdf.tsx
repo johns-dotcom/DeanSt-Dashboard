@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Invoice } from "@/lib/db/schema";
+import type { InvoicePaymentInfo } from "@/lib/invoice-payment";
 
 const styles = StyleSheet.create({
   page: { padding: 48, fontSize: 10, fontFamily: "Helvetica", color: "#1a1a1a" },
@@ -89,10 +90,12 @@ export function InvoicePDF({
   invoice,
   workspaceName,
   paymentTerms,
+  payment,
 }: {
   invoice: Invoice;
   workspaceName: string;
   paymentTerms: string;
+  payment: InvoicePaymentInfo;
 }) {
   const subtotal = Number(invoice.subtotal);
   const tax = Number(invoice.taxRate);
@@ -124,16 +127,17 @@ export function InvoicePDF({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>Funds payable to</Text>
-            <Text style={[styles.billTo, { fontSize: 10 }]}>DEAN ST CO</Text>
-            <Text style={[styles.description, { marginTop: 4 }]}>CONTACT: JOHN SKEAD</Text>
-            <Text style={styles.description}>EMAIL: john@deanst.co</Text>
+            <Text style={[styles.billTo, { fontSize: 10 }]}>{payment.entityName}</Text>
+            <Text style={[styles.description, { marginTop: 4 }]}>CONTACT: {payment.contactName}</Text>
+            <Text style={styles.description}>EMAIL: {payment.contactEmail}</Text>
             <Text style={[styles.sectionLabel, { marginTop: 10 }]}>Payment method</Text>
-            <Text style={[styles.description, { marginTop: 4 }]}>JP Morgan Chase</Text>
-            <Text style={styles.description}>31250 Palos Verdes Dr W</Text>
-            <Text style={styles.description}>Rancho Palos Verdes, CA, 90275</Text>
-            <Text style={[styles.description, { marginTop: 6 }]}>Account: 953162333</Text>
-            <Text style={styles.description}>Routing: 322271627</Text>
-            <Text style={[styles.description, { marginTop: 6 }]}>Payable to Jacob Allen</Text>
+            <Text style={[styles.description, { marginTop: 4 }]}>{payment.bankName}</Text>
+            {payment.bankAddressLines.map((line, i) => (
+              <Text key={i} style={styles.description}>{line}</Text>
+            ))}
+            <Text style={[styles.description, { marginTop: 6 }]}>Account: {payment.accountNumber}</Text>
+            <Text style={styles.description}>Routing: {payment.routingNumber}</Text>
+            <Text style={[styles.description, { marginTop: 6 }]}>Payable to {payment.payeeName}</Text>
           </View>
         </View>
 

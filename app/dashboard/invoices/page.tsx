@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/workspace";
 import { db } from "@/lib/db";
 import { invoices, workspaces, invoiceClientPages, invoiceReceipts } from "@/lib/db/schema";
 import { formatInvoiceNumber, lowestAvailableNumber, byInvoiceNumberDesc } from "@/lib/invoice-number";
+import { paymentInfoFromWorkspace } from "@/lib/invoice-payment";
 import { InvoicesClient } from "./invoices-client";
 
 export default async function InvoicesPage() {
@@ -32,6 +33,7 @@ export default async function InvoicesPage() {
       invoices={rows}
       workspaceName={session.workspace.name}
       paymentTerms={session.workspace.defaultPaymentTerms}
+      payment={paymentInfoFromWorkspace(session.workspace)}
       nextInvoiceNumber={nextNumber}
       clientPages={pages}
       activeClientSlug={null}
