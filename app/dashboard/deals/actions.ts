@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
-import { requireEditor } from "@/lib/auth/workspace";
+import { editorMutation } from "@/lib/auth/action";
+import { byId } from "@/lib/db/scope";
 import { logActivity } from "@/lib/activity";
 
 const dealSchema = z.object({
@@ -23,45 +23,9 @@ export async function createDeal(input: z.infer<typeof dealSchema>) {
   const parsed = dealSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireEditor();
-
-  const [inserted] = await db.insert(deals).values({
-    workspaceId: session.workspace.id,
-    artist: parsed.data.artist,
-    type: parsed.data.type,
-    counterparty: parsed.data.counterparty,
-    value: parsed.data.value.toFixed(2),
-    startDate: parsed.data.start_date || null,
-    endDate: parsed.data.end_date || null,
-    status: parsed.data.status,
-    notes: parsed.data.notes || null,
-  }).returning({ id: deals.id });
-
-  await logActivity({
-    action: "deal.created",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "deal",
-    entityId: inserted.id,
-    entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
-  });
-
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/deals");
-  return { ok: true as const };
-}
-
-export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) {
-  const parsed = dealSchema.safeParse(input);
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-
-  const session = await requireEditor();
-
-  await db
-    .update(deals)
-    .set({
+  return editorMutation("createDeal", async (session) => {
+    const [inserted] = await db.insert(deals).values({
+      workspaceId: session.workspace.id,
       artist: parsed.data.artist,
       type: parsed.data.type,
       counterparty: parsed.data.counterparty,
@@ -70,34 +34,69 @@ export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) 
       endDate: parsed.data.end_date || null,
       status: parsed.data.status,
       notes: parsed.data.notes || null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
+    }).returning({ id: deals.id });
 
-  await logActivity({
-    action: "deal.updated",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "deal",
-    entityId: id,
-    entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
+    await logActivity({
+      action: "deal.created",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "deal",
+      entityId: inserted.id,
+      entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/deals");
+    return { ok: true as const };
   });
+}
 
-  revalidatePath("/dashboard/deals");
-  return { ok: true as const };
+export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) {
+  const parsed = dealSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  return editorMutation("updateDeal", async (session) => {
+    await db
+      .update(deals)
+      .set({
+        artist: parsed.data.artist,
+        type: parsed.data.type,
+        counterparty: parsed.data.counterparty,
+        value: parsed.data.value.toFixed(2),
+        startDate: parsed.data.start_date || null,
+        endDate: parsed.data.end_date || null,
+        status: parsed.data.status,
+        notes: parsed.data.notes || null,
+        updatedAt: new Date(),
+      })
+      .where(byId(deals, id, session.workspace.id));
+
+    await logActivity({
+      action: "deal.updated",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "deal",
+      entityId: id,
+      entityLabel: `${parsed.data.artist} × ${parsed.data.counterparty}`,
+    });
+
+    revalidatePath("/dashboard/deals");
+    return { ok: true as const };
+  });
 }
 
 export async function deleteDeal(id: string) {
-  const session = await requireEditor();
-  try {
+  return editorMutation("deleteDeal", async (session) => {
     const [doomed] = await db
       .select({ artist: deals.artist, counterparty: deals.counterparty })
       .from(deals)
-      .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)))
+      .where(byId(deals, id, session.workspace.id))
       .limit(1);
-    await db.delete(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
+    await db.delete(deals).where(byId(deals, id, session.workspace.id));
 
     await logActivity({
       action: "deal.deleted",
@@ -112,8 +111,5 @@ export async function deleteDeal(id: string) {
 
     revalidatePath("/dashboard/deals");
     return { ok: true as const };
-  } catch (err) {
-    console.error("[deleteDeal] failed", err instanceof Error ? err.message : err);
-    return { error: "Couldn't delete the deal. Please try again." };
-  }
+  });
 }

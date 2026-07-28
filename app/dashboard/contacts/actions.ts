@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
-import { requireEditor } from "@/lib/auth/workspace";
+import { editorMutation } from "@/lib/auth/action";
+import { byId } from "@/lib/db/scope";
 import { logActivity } from "@/lib/activity";
 
 const contactSchema = z.object({
@@ -23,42 +23,9 @@ export async function createContact(input: z.infer<typeof contactSchema>) {
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
-  const session = await requireEditor();
-
-  const [inserted] = await db.insert(contacts).values({
-    workspaceId: session.workspace.id,
-    name: parsed.data.name,
-    role: parsed.data.role || null,
-    industry: parsed.data.industry?.trim() || null,
-    email: parsed.data.email || null,
-    phone: parsed.data.phone || null,
-    city: parsed.data.city || null,
-    clients: parsed.data.clients,
-    notes: parsed.data.notes || null,
-  }).returning({ id: contacts.id });
-
-  await logActivity({
-    action: "contact.created",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "contact",
-    entityId: inserted.id,
-    entityLabel: parsed.data.name,
-  });
-  revalidatePath("/dashboard/contacts");
-  return { ok: true as const };
-}
-
-export async function updateContact(id: string, input: z.infer<typeof contactSchema>) {
-  const parsed = contactSchema.safeParse(input);
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-
-  const session = await requireEditor();
-  await db
-    .update(contacts)
-    .set({
+  return editorMutation("createContact", async (session) => {
+    const [inserted] = await db.insert(contacts).values({
+      workspaceId: session.workspace.id,
       name: parsed.data.name,
       role: parsed.data.role || null,
       industry: parsed.data.industry?.trim() || null,
@@ -67,34 +34,67 @@ export async function updateContact(id: string, input: z.infer<typeof contactSch
       city: parsed.data.city || null,
       clients: parsed.data.clients,
       notes: parsed.data.notes || null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
+    }).returning({ id: contacts.id });
 
-  await logActivity({
-    action: "contact.updated",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "contact",
-    entityId: id,
-    entityLabel: parsed.data.name,
+    await logActivity({
+      action: "contact.created",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "contact",
+      entityId: inserted.id,
+      entityLabel: parsed.data.name,
+    });
+    revalidatePath("/dashboard/contacts");
+    return { ok: true as const };
   });
+}
 
-  revalidatePath("/dashboard/contacts");
-  return { ok: true as const };
+export async function updateContact(id: string, input: z.infer<typeof contactSchema>) {
+  const parsed = contactSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  return editorMutation("updateContact", async (session) => {
+    await db
+      .update(contacts)
+      .set({
+        name: parsed.data.name,
+        role: parsed.data.role || null,
+        industry: parsed.data.industry?.trim() || null,
+        email: parsed.data.email || null,
+        phone: parsed.data.phone || null,
+        city: parsed.data.city || null,
+        clients: parsed.data.clients,
+        notes: parsed.data.notes || null,
+        updatedAt: new Date(),
+      })
+      .where(byId(contacts, id, session.workspace.id));
+
+    await logActivity({
+      action: "contact.updated",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "contact",
+      entityId: id,
+      entityLabel: parsed.data.name,
+    });
+
+    revalidatePath("/dashboard/contacts");
+    return { ok: true as const };
+  });
 }
 
 export async function deleteContact(id: string) {
-  const session = await requireEditor();
-  try {
+  return editorMutation("deleteContact", async (session) => {
     const [doomed] = await db
       .select({ name: contacts.name })
       .from(contacts)
-      .where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)))
+      .where(byId(contacts, id, session.workspace.id))
       .limit(1);
-    await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.workspaceId, session.workspace.id)));
+    await db.delete(contacts).where(byId(contacts, id, session.workspace.id));
     await logActivity({
       action: "contact.deleted",
       workspaceId: session.workspace.id,
@@ -107,8 +107,5 @@ export async function deleteContact(id: string) {
     });
     revalidatePath("/dashboard/contacts");
     return { ok: true as const };
-  } catch (err) {
-    console.error("[deleteContact] failed", err instanceof Error ? err.message : err);
-    return { error: "Couldn't delete the contact. Please try again." };
-  }
+  });
 }
