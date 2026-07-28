@@ -10,14 +10,9 @@ import {
   deleteNdaFile,
   getNdaFileDownloadUrl,
 } from "./actions";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatFileSize } from "@/lib/utils";
 import type { Nda, NdaFile } from "@/lib/db/schema";
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 /**
  * Upload one or more signed-copy files against an NDA. Shared by the files
@@ -188,7 +183,7 @@ export function NdaFilesPanel({
                         {f.fileName}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
-                        {fmtSize(f.fileSize)} · {formatDate(f.uploadedAt, { month: "short", day: "numeric", year: "numeric" })}
+                        {formatFileSize(f.fileSize)} · {formatDate(f.uploadedAt, { month: "short", day: "numeric", year: "numeric" })}
                       </div>
                     </div>
                     <button onClick={() => handleDownload(f)} title="Download" style={iconBtn}>
