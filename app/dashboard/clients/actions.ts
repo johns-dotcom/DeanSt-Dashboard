@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, count, eq, max } from "drizzle-orm";
+import { and, count, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { clients, documents, documentFolders } from "@/lib/db/schema";
@@ -158,12 +158,4 @@ export async function deleteClient(id: string) {
 
   revalidatePath("/dashboard/clients", "layout");
   return { ok: true as const };
-}
-
-export async function listClients(workspaceId: string) {
-  return db
-    .select()
-    .from(clients)
-    .where(eq(clients.workspaceId, workspaceId))
-    .orderBy(asc(clients.sortOrder), asc(clients.name));
 }
