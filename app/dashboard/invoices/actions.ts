@@ -8,6 +8,7 @@ import { invoices, invoiceReceipts, workspaces, type LineItem } from "@/lib/db/s
 import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
 import { formatInvoiceNumber, lowestAvailableNumber } from "@/lib/invoice-number";
+import { computeTotals } from "@/lib/invoice-totals";
 
 const lineItemSchema = z.object({
   description: z.string(),
@@ -28,12 +29,6 @@ const invoiceSchema = z.object({
   issued_date: z.string().optional().nullable(),
   status: z.enum(["draft", "pending", "overdue", "paid"]).default("draft"),
 });
-
-function computeTotals(items: { quantity: number; rate: number; amount: number }[], taxRate: number) {
-  const subtotal = items.reduce((s, i) => s + Number(i.amount || i.quantity * i.rate), 0);
-  const total = subtotal * (1 + taxRate / 100);
-  return { subtotal: Number(subtotal.toFixed(2)), total: Number(total.toFixed(2)) };
-}
 
 // Assigns the lowest available invoice number within a transaction. Locks the
 // workspace row (FOR UPDATE) so concurrent creates serialize and can't pick the
