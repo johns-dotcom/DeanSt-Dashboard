@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { documents, documentFolders, clients } from "@/lib/db/schema";
 import { requireSession, requireEditor } from "@/lib/auth/workspace";
-import { deleteObject } from "@/lib/r2";
+import { deleteObjectBestEffort } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
 export async function deleteDocument(id: string) {
@@ -18,9 +18,7 @@ export async function deleteDocument(id: string) {
     .limit(1);
   if (!doc) return { error: "Not found" };
 
-  try { await deleteObject(doc.filePath); } catch {
-    /* swallow — DB row deletion is more important than orphaned blob */
-  }
+  await deleteObjectBestEffort(doc.filePath, "deleteDocument");
   await db.delete(documents).where(eq(documents.id, id));
 
   await logActivity({

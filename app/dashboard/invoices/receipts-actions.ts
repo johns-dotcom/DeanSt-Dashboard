@@ -5,7 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoiceReceipts } from "@/lib/db/schema";
 import { requireSession, requireEditor } from "@/lib/auth/workspace";
-import { deleteObject } from "@/lib/r2";
+import { deleteObjectBestEffort } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
 
 export async function listReceipts(invoiceId: string) {
@@ -26,7 +26,7 @@ export async function deleteReceipt(id: string) {
     .limit(1);
   if (!doomed) return { error: "Receipt not found" };
 
-  try { await deleteObject(doomed.filePath); } catch { /* swallow */ }
+  await deleteObjectBestEffort(doomed.filePath, "deleteReceipt");
   await db.delete(invoiceReceipts).where(eq(invoiceReceipts.id, id));
 
   await logActivity({

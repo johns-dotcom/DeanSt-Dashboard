@@ -72,3 +72,24 @@ export async function getObject(key: string): Promise<{ body: ArrayBuffer; conte
 export async function deleteObject(key: string) {
   await client().send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
 }
+
+/**
+ * Delete an object without failing the caller if R2 is unavailable — the DB row
+ * removal matters more than the blob. Unlike a bare swallow, a failure is
+ * logged with the orphaned key so it can be found and cleaned up later.
+ * Returns true if the delete succeeded.
+ */
+export async function deleteObjectBestEffort(key: string, context = "unknown"): Promise<boolean> {
+  try {
+    await deleteObject(key);
+    return true;
+  } catch (err) {
+    console.error("[r2] orphaned object — delete failed", {
+      context,
+      bucket: r2Bucket,
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
