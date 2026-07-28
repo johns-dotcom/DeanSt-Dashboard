@@ -10,6 +10,7 @@ import {
   jsonb,
   primaryKey,
   unique,
+  index,
   pgEnum,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -147,6 +148,7 @@ export const invoices = pgTable("invoices", {
   // Invoice numbers must be unique within a workspace — guards against the
   // sequence counter ever drifting out of sync and producing a duplicate.
   workspaceNumberUnique: unique("invoices_workspace_number_unique").on(t.workspaceId, t.invoiceNumber),
+  workspaceIdx: index("invoices_workspace_idx").on(t.workspaceId),
 }));
 
 export const deals = pgTable("deals", {
@@ -162,7 +164,9 @@ export const deals = pgTable("deals", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  workspaceIdx: index("deals_workspace_idx").on(t.workspaceId),
+}));
 
 export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -177,7 +181,9 @@ export const contacts = pgTable("contacts", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  workspaceNameIdx: index("contacts_workspace_name_idx").on(t.workspaceId, t.name),
+}));
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -192,7 +198,9 @@ export const tasks = pgTable("tasks", {
   linkedEntityId: uuid("linked_entity_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  workspaceIdx: index("tasks_workspace_idx").on(t.workspaceId),
+}));
 
 // First-class client entity. The canonical per-workspace client list that
 // powers the Clients section. Document folders/files link to it via clientId.
@@ -280,7 +288,9 @@ export const ndas = pgTable("ndas", {
   createdBy: uuid("created_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  workspaceIdx: index("ndas_workspace_idx").on(t.workspaceId),
+}));
 
 export const ndaFiles = pgTable("nda_files", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -293,7 +303,9 @@ export const ndaFiles = pgTable("nda_files", {
   uploadedBy: uuid("uploaded_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  ndaIdx: index("nda_files_workspace_nda_idx").on(t.workspaceId, t.ndaId),
+}));
 
 export const invoiceReceipts = pgTable("invoice_receipts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -306,7 +318,9 @@ export const invoiceReceipts = pgTable("invoice_receipts", {
   uploadedBy: uuid("uploaded_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  invoiceIdx: index("invoice_receipts_workspace_invoice_idx").on(t.workspaceId, t.invoiceId),
+}));
 
 export const activityEvents = pgTable("activity_events", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -320,7 +334,9 @@ export const activityEvents = pgTable("activity_events", {
   entityLabel: text("entity_label"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  workspaceCreatedIdx: index("activity_events_workspace_created_idx").on(t.workspaceId, t.createdAt),
+}));
 
 /* ─────────── relations (light, only what we query) ─────────── */
 export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
