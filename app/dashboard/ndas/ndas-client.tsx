@@ -165,9 +165,14 @@ export function NdasClient({
   function handleDelete(n: Nda) {
     if (!confirm(`Delete NDA for ${n.recipientName}? Attached signed copies will also be removed.`)) return;
     startTransition(async () => {
-      await deleteNda(n.id);
-      toast.success("NDA deleted");
-      if (editingId === n.id) startNew();
+      try {
+        const r = await deleteNda(n.id);
+        if (r && "error" in r && r.error) { toast.error(r.error); return; }
+        toast.success("NDA deleted");
+        if (editingId === n.id) startNew();
+      } catch {
+        toast.error("Couldn't delete NDA");
+      }
     });
   }
 

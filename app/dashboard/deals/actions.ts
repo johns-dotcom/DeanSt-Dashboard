@@ -91,24 +91,29 @@ export async function updateDeal(id: string, input: z.infer<typeof dealSchema>) 
 
 export async function deleteDeal(id: string) {
   const session = await requireEditor();
-  const [doomed] = await db
-    .select({ artist: deals.artist, counterparty: deals.counterparty })
-    .from(deals)
-    .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)))
-    .limit(1);
-  await db.delete(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
+  try {
+    const [doomed] = await db
+      .select({ artist: deals.artist, counterparty: deals.counterparty })
+      .from(deals)
+      .where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)))
+      .limit(1);
+    await db.delete(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, session.workspace.id)));
 
-  await logActivity({
-    action: "deal.deleted",
-    workspaceId: session.workspace.id,
-    actorUserId: session.user.id,
-    actorMemberId: session.member.id,
-    actorName: session.member.displayName,
-    entityType: "deal",
-    entityId: id,
-    entityLabel: doomed ? `${doomed.artist} × ${doomed.counterparty}` : null,
-  });
+    await logActivity({
+      action: "deal.deleted",
+      workspaceId: session.workspace.id,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "deal",
+      entityId: id,
+      entityLabel: doomed ? `${doomed.artist} × ${doomed.counterparty}` : null,
+    });
 
-  revalidatePath("/dashboard/deals");
-  return { ok: true as const };
+    revalidatePath("/dashboard/deals");
+    return { ok: true as const };
+  } catch (err) {
+    console.error("[deleteDeal] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't delete the deal. Please try again." };
+  }
 }
