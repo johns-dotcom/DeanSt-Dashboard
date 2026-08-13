@@ -5,7 +5,7 @@ import type { DraftInvoice } from "./invoices-client";
 
 function payableToLines(p: InvoicePaymentInfo): string[] {
   return [
-    p.entityName,
+    `Payable to ${p.payeeName}`,
     "",
     `CONTACT: ${p.contactName}`,
     `EMAIL: ${p.contactEmail}`,
@@ -16,8 +16,6 @@ function payableToLines(p: InvoicePaymentInfo): string[] {
     "",
     `Account: ${p.accountNumber}`,
     `Routing: ${p.routingNumber}`,
-    "",
-    `Payable to ${p.payeeName}`,
   ];
 }
 

@@ -127,7 +127,7 @@ export function InvoicePDF({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>Funds payable to</Text>
-            <Text style={[styles.billTo, { fontSize: 10 }]}>{payment.entityName}</Text>
+            <Text style={[styles.billTo, { fontSize: 10 }]}>Payable to {payment.payeeName}</Text>
             <Text style={[styles.description, { marginTop: 4 }]}>CONTACT: {payment.contactName}</Text>
             <Text style={styles.description}>EMAIL: {payment.contactEmail}</Text>
             <Text style={[styles.sectionLabel, { marginTop: 10 }]}>Payment method</Text>
@@ -137,7 +137,6 @@ export function InvoicePDF({
             ))}
             <Text style={[styles.description, { marginTop: 6 }]}>Account: {payment.accountNumber}</Text>
             <Text style={styles.description}>Routing: {payment.routingNumber}</Text>
-            <Text style={[styles.description, { marginTop: 6 }]}>Payable to {payment.payeeName}</Text>
           </View>
         </View>
 
