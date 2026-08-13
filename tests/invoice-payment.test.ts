@@ -12,6 +12,7 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
     invoiceBankAddress: "31250 Palos Verdes Dr W\nRancho Palos Verdes, CA, 90275",
     invoiceAccountNumber: "953162333",
     invoiceRoutingNumber: "322271627",
+    invoiceWireRoutingNumber: "021000021",
     invoicePayeeName: "Jacob Allen",
     ...overrides,
   } as Workspace;
@@ -24,6 +25,7 @@ describe("paymentInfoFromWorkspace", () => {
     assert.equal(p.payeeName, "Jacob Allen");
     assert.equal(p.accountNumber, "953162333");
     assert.equal(p.routingNumber, "322271627");
+    assert.equal(p.wireRoutingNumber, "021000021");
   });
 
   it("splits the bank address into non-empty trimmed lines", () => {
@@ -52,7 +54,11 @@ describe("payableToLines", () => {
     assert.ok(!lines.some((l) => l.includes("DEAN ST CO")));
   });
 
-  it("ends with the account and routing numbers", () => {
-    assert.deepEqual(lines.slice(-2), ["Account: 953162333", "Routing: 322271627"]);
+  it("ends with the account and both routing numbers, each labelled", () => {
+    assert.deepEqual(lines.slice(-3), [
+      "Account: 953162333",
+      "ACH Routing: 322271627",
+      "Wire Routing: 021000021",
+    ]);
   });
 });

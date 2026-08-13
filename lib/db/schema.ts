@@ -88,7 +88,10 @@ export const workspaces = pgTable("workspaces", {
   invoiceBankName: text("invoice_bank_name").notNull().default("JP Morgan Chase"),
   invoiceBankAddress: text("invoice_bank_address").notNull().default("31250 Palos Verdes Dr W\nRancho Palos Verdes, CA, 90275"),
   invoiceAccountNumber: text("invoice_account_number").notNull().default("953162333"),
+  // ACH and wire routing numbers differ at most banks, and paying by the wrong
+  // one bounces the transfer — invoices print both, labelled.
   invoiceRoutingNumber: text("invoice_routing_number").notNull().default("322271627"),
+  invoiceWireRoutingNumber: text("invoice_wire_routing_number").notNull().default("021000021"),
   invoicePayeeName: text("invoice_payee_name").notNull().default("Jacob Allen"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

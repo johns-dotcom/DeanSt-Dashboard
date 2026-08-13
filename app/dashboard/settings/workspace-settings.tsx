@@ -24,6 +24,7 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
   const [bankAddress, setBankAddress] = useState(workspace.invoiceBankAddress);
   const [accountNumber, setAccountNumber] = useState(workspace.invoiceAccountNumber);
   const [routingNumber, setRoutingNumber] = useState(workspace.invoiceRoutingNumber);
+  const [wireRoutingNumber, setWireRoutingNumber] = useState(workspace.invoiceWireRoutingNumber);
   const [payeeName, setPayeeName] = useState(workspace.invoicePayeeName);
   const [pending, startTransition] = useTransition();
 
@@ -40,6 +41,7 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
         invoice_bank_address: bankAddress,
         invoice_account_number: accountNumber,
         invoice_routing_number: routingNumber,
+        invoice_wire_routing_number: wireRoutingNumber,
         invoice_payee_name: payeeName,
       });
       if ("error" in r && r.error) toast.error(r.error); else toast.success("Workspace updated");
@@ -101,8 +103,12 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
         <Input id="accountNumber" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} disabled={disabled} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="routingNumber">Routing number</Label>
+        <Label htmlFor="routingNumber">ACH routing number</Label>
         <Input id="routingNumber" value={routingNumber} onChange={(e) => setRoutingNumber(e.target.value)} disabled={disabled} />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="wireRoutingNumber">Wire routing number</Label>
+        <Input id="wireRoutingNumber" value={wireRoutingNumber} onChange={(e) => setWireRoutingNumber(e.target.value)} disabled={disabled} />
       </div>
 
       <div className="col-span-2 flex justify-end">

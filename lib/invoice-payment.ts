@@ -13,7 +13,9 @@ export interface InvoicePaymentInfo {
   bankName: string;
   bankAddressLines: string[];
   accountNumber: string;
+  /** ACH routing number — printed alongside the wire routing number. */
   routingNumber: string;
+  wireRoutingNumber: string;
   payeeName: string;
 }
 
@@ -29,6 +31,7 @@ export function paymentInfoFromWorkspace(ws: Workspace): InvoicePaymentInfo {
       .filter(Boolean),
     accountNumber: ws.invoiceAccountNumber,
     routingNumber: ws.invoiceRoutingNumber,
+    wireRoutingNumber: ws.invoiceWireRoutingNumber,
     payeeName: ws.invoicePayeeName,
   };
 }
@@ -49,6 +52,7 @@ export function payableToLines(p: InvoicePaymentInfo): string[] {
     ...p.bankAddressLines,
     "",
     `Account: ${p.accountNumber}`,
-    `Routing: ${p.routingNumber}`,
+    `ACH Routing: ${p.routingNumber}`,
+    `Wire Routing: ${p.wireRoutingNumber}`,
   ];
 }
