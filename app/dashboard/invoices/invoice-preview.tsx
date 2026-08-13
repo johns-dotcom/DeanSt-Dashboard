@@ -1,23 +1,7 @@
 import { SignPlate } from "@/components/brand/sign-plate";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { InvoicePaymentInfo } from "@/lib/invoice-payment";
+import { payableToLines, type InvoicePaymentInfo } from "@/lib/invoice-payment";
 import type { DraftInvoice } from "./invoices-client";
-
-function payableToLines(p: InvoicePaymentInfo): string[] {
-  return [
-    `Payable to ${p.payeeName}`,
-    "",
-    `CONTACT: ${p.contactName}`,
-    `EMAIL: ${p.contactEmail}`,
-    "",
-    "PAYMENT METHOD",
-    p.bankName,
-    ...p.bankAddressLines,
-    "",
-    `Account: ${p.accountNumber}`,
-    `Routing: ${p.routingNumber}`,
-  ];
-}
 
 export function InvoicePreviewPanel({
   draft,

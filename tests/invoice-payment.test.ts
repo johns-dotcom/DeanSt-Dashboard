@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { paymentInfoFromWorkspace } from "../lib/invoice-payment.ts";
+import { payableToLines, paymentInfoFromWorkspace } from "../lib/invoice-payment.ts";
 import type { Workspace } from "@/lib/db/schema";
 
 function workspace(overrides: Partial<Workspace> = {}): Workspace {
@@ -37,5 +37,22 @@ describe("paymentInfoFromWorkspace", () => {
   it("drops blank address lines", () => {
     const p = paymentInfoFromWorkspace(workspace({ invoiceBankAddress: "Line 1\n\n  \nLine 2" }));
     assert.deepEqual(p.bankAddressLines, ["Line 1", "Line 2"]);
+  });
+});
+
+describe("payableToLines", () => {
+  const lines = payableToLines(paymentInfoFromWorkspace(workspace()));
+
+  it("leads with the payee and never repeats it", () => {
+    assert.equal(lines[0], "Payable to Jacob Allen");
+    assert.equal(lines.filter((l) => l.startsWith("Payable to")).length, 1);
+  });
+
+  it("does not print the entity name", () => {
+    assert.ok(!lines.some((l) => l.includes("DEAN ST CO")));
+  });
+
+  it("ends with the account and routing numbers", () => {
+    assert.deepEqual(lines.slice(-2), ["Account: 953162333", "Routing: 322271627"]);
   });
 });

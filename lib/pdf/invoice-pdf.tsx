@@ -1,63 +1,99 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Invoice } from "@/lib/db/schema";
-import type { InvoicePaymentInfo } from "@/lib/invoice-payment";
+import { payableToLines, type InvoicePaymentInfo } from "@/lib/invoice-payment";
 
+// The PDF is a point-for-point translation of the on-screen preview
+// (app/dashboard/invoices/invoice-preview.tsx) so a downloaded invoice looks
+// like the one the sender approved in the app. Keep the two in step: sizes here
+// are the preview's px values at ~0.75 (px → pt), and the palette below is the
+// app's --ink/--hair tokens flattened onto white (react-pdf has no CSS vars).
+const INK = "#1a1612";
+const INK_SOFT = "#716f6c";
+const INK_FAINT = "#a8a6a5";
+const HAIR = "#e8e8e7";
+const NAVY = "#1d3c8e";
+const WHITE = "#ffffff";
+
+// `.mono` in globals.css is uppercase Arial — not a monospaced face — so the
+// label styles below use Helvetica with textTransform, not Courier.
 const styles = StyleSheet.create({
-  page: { padding: 48, fontSize: 10, fontFamily: "Helvetica", color: "#1a1a1a" },
-  header: {
+  page: { padding: 48, fontSize: 10, fontFamily: "Helvetica", color: INK, lineHeight: 1.4 },
+  // lineHeight is pinned here because the page's 1.4 leading leaves this
+  // 27pt line under-measured, and the NO. line lands on top of the glyphs.
+  title: { fontFamily: "Helvetica-Bold", fontSize: 27, lineHeight: 1.2, letterSpacing: -0.5, marginTop: 11 },
+  meta: { fontSize: 8, letterSpacing: 1.9, textTransform: "uppercase", color: INK_SOFT, marginTop: 5 },
+  rule: { borderTopWidth: 1, borderTopColor: HAIR, marginVertical: 15 },
+  columns: { flexDirection: "row", gap: 24 },
+  sectionLabel: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8.5,
+    letterSpacing: 1.35,
+    textTransform: "uppercase",
+  },
+  billTo: { marginTop: 6, fontSize: 10, color: INK_SOFT },
+  payableLine: { fontSize: 8.5, letterSpacing: 0.7, textTransform: "uppercase" },
+  dueRow: { flexDirection: "row", alignItems: "baseline", gap: 10 },
+  dueValue: { fontSize: 8.5, letterSpacing: 1.35, textTransform: "uppercase", color: INK_SOFT },
+  tableHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 7.5,
+    borderBottomWidth: 1,
+    borderBottomColor: HAIR,
+    fontFamily: "Helvetica-Bold",
+  },
+  tr: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    borderBottom: "0.5px solid #ddd",
-    paddingBottom: 16,
+    gap: 16,
+    paddingVertical: 7.5,
+    borderBottomWidth: 1,
+    borderBottomColor: HAIR,
+    color: INK_SOFT,
   },
-  brand: { fontSize: 16, fontWeight: 500 },
-  brandSub: { fontSize: 8, color: "#666", marginTop: 2 },
-  invoiceMeta: { textAlign: "right" },
-  metaLabel: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
-  metaValue: { fontFamily: "Courier", fontSize: 14, marginTop: 2 },
-  small: { fontSize: 8, color: "#666", marginTop: 4 },
-  section: { marginTop: 20 },
-  sectionLabel: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
-  billTo: { marginTop: 4, fontSize: 11, fontWeight: 500 },
-  description: { marginTop: 8, fontSize: 9, color: "#666" },
-  table: { marginTop: 24, width: "100%" },
-  tableHead: { flexDirection: "row", borderBottom: "0.5px solid #ddd", paddingBottom: 6 },
-  th: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1, color: "#777" },
-  tr: { flexDirection: "row", paddingVertical: 6, borderBottom: "0.5px solid #eee" },
-  td: { fontSize: 10 },
-  totals: { marginTop: 16, marginLeft: "auto", width: 240 },
-  totalsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  totalsLabel: { color: "#777" },
-  grandTotal: {
+  notes: { fontSize: 8.5, color: INK_FAINT, marginTop: 2 },
+  taxRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, color: INK_SOFT },
+  totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 6,
-    marginTop: 4,
-    borderTop: "0.5px solid #ddd",
+    paddingVertical: 10,
+    fontFamily: "Helvetica-Bold",
     fontSize: 11,
-    fontWeight: 500,
   },
-  footer: { marginTop: 36, paddingTop: 16, borderTop: "0.5px solid #ddd", fontSize: 8, color: "#777" },
+  issued: { marginTop: 15, fontSize: 9, color: INK_FAINT },
 });
 
-function fmt(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+// Amounts render as "10,000.00 $" — the trailing-symbol form the preview uses.
+function money(value: number) {
+  return (
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+      .format(value)
+      .replace("$", "") + " $"
+  );
+}
+
+// Parse calendar-only strings (YYYY-MM-DD) in local time so they don't drift
+// back a day in timezones west of UTC.
+function parseDate(d: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d);
 }
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
-  // Parse calendar-only strings (YYYY-MM-DD) in local time so they
-  // don't drift back a day in timezones west of UTC.
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
-  const parsed = m
-    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-    : new Date(d);
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parseDate(d));
 }
 
-const NAVY = "#1d3c8e";
-const WHITE = "#ffffff";
+function fmtLongDate(d?: string | null) {
+  if (!d) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(parseDate(d));
+}
 
 // The Dean St "site logo" pill, rebuilt with react-pdf box primitives so it
 // renders crisply in the PDF without rasterizing an SVG (which would need a
@@ -88,100 +124,92 @@ function BrandPlate() {
 
 export function InvoicePDF({
   invoice,
-  workspaceName,
   paymentTerms,
   payment,
 }: {
   invoice: Invoice;
-  workspaceName: string;
   paymentTerms: string;
   payment: InvoicePaymentInfo;
 }) {
   const subtotal = Number(invoice.subtotal);
   const tax = Number(invoice.taxRate);
   const total = Number(invoice.total);
+  const billToLines = [invoice.client, ...(invoice.description ? invoice.description.split("\n") : [])];
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <View>
-            <BrandPlate />
-            <Text style={[styles.brand, { marginTop: 10 }]}>{workspaceName} Media</Text>
-            <Text style={styles.brandSub}>Operations · {paymentTerms}</Text>
+        <BrandPlate />
+        <Text style={styles.title}>INVOICE</Text>
+        <Text style={styles.meta}>NO.: {invoice.invoiceNumber.replace(/^[A-Z]+-?/, "")}</Text>
+        <Text style={[styles.meta, { marginTop: 2 }]}>PURCHASE ORDER #: N/A</Text>
+
+        <View style={styles.rule} />
+
+        <View style={styles.columns}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionLabel}>Bill To:</Text>
+            <View style={styles.billTo}>
+              {billToLines.map((line, i) => (
+                <Text key={i}>{line || " "}</Text>
+              ))}
+            </View>
           </View>
-          <View style={styles.invoiceMeta}>
-            <Text style={styles.metaLabel}>Invoice</Text>
-            <Text style={styles.metaValue}>{invoice.invoiceNumber}</Text>
-            <Text style={styles.small}>Issued {fmtDate(invoice.issuedDate)}</Text>
-            {invoice.dueDate ? <Text style={styles.small}>Due {fmtDate(invoice.dueDate)}</Text> : null}
-            <Text style={[styles.small, { marginTop: 6, textTransform: "uppercase" }]}>{invoice.status}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionLabel}>Funds payable to:</Text>
+            <View style={{ marginTop: 6 }}>
+              {payableToLines(payment).map((line, i) => (
+                <Text key={i} style={styles.payableLine}>{line || " "}</Text>
+              ))}
+            </View>
           </View>
         </View>
 
-        <View style={[styles.section, { flexDirection: "row", gap: 24 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>Bill to</Text>
-            <Text style={styles.billTo}>{invoice.client}</Text>
-            {invoice.description ? <Text style={styles.description}>{invoice.description}</Text> : null}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>Funds payable to</Text>
-            <Text style={[styles.billTo, { fontSize: 10 }]}>Payable to {payment.payeeName}</Text>
-            <Text style={[styles.description, { marginTop: 4 }]}>CONTACT: {payment.contactName}</Text>
-            <Text style={styles.description}>EMAIL: {payment.contactEmail}</Text>
-            <Text style={[styles.sectionLabel, { marginTop: 10 }]}>Payment method</Text>
-            <Text style={[styles.description, { marginTop: 4 }]}>{payment.bankName}</Text>
-            {payment.bankAddressLines.map((line, i) => (
-              <Text key={i} style={styles.description}>{line}</Text>
-            ))}
-            <Text style={[styles.description, { marginTop: 6 }]}>Account: {payment.accountNumber}</Text>
-            <Text style={styles.description}>Routing: {payment.routingNumber}</Text>
-          </View>
+        <View style={[styles.rule, { marginVertical: 16 }]} />
+
+        <View style={styles.dueRow}>
+          <Text style={styles.sectionLabel}>Due by:</Text>
+          <Text style={styles.dueValue}>{invoice.dueDate ? fmtDate(invoice.dueDate) : paymentTerms}</Text>
         </View>
 
-        <View style={styles.table}>
+        <View style={{ marginTop: 16 }}>
           <View style={styles.tableHead}>
-            <Text style={[styles.th, { flex: 4 }]}>Description</Text>
-            <Text style={[styles.th, { flex: 1, textAlign: "right" }]}>Qty</Text>
-            <Text style={[styles.th, { flex: 1.5, textAlign: "right" }]}>Rate</Text>
-            <Text style={[styles.th, { flex: 1.5, textAlign: "right" }]}>Amount</Text>
+            <Text>Description</Text>
+            <Text>Amount Due</Text>
           </View>
           {invoice.lineItems.map((it, idx) => (
             <View key={idx} style={styles.tr}>
-              <View style={{ flex: 4 }}>
-                <Text style={styles.td}>{it.description || "—"}</Text>
-                {it.notes ? (
-                  <Text style={[styles.td, { fontSize: 8, color: "#888", marginTop: 2 }]}>{it.notes}</Text>
-                ) : null}
+              <View style={{ flex: 1 }}>
+                <Text>{it.description || "Description"}</Text>
+                {it.notes ? <Text style={styles.notes}>{it.notes}</Text> : null}
               </View>
-              <Text style={[styles.td, { flex: 1, textAlign: "right" }]}>{it.quantity}</Text>
-              <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.rate))}</Text>
-              <Text style={[styles.td, { flex: 1.5, textAlign: "right" }]}>{fmt(Number(it.amount || it.quantity * it.rate))}</Text>
+              <Text>{money(Number(it.amount || it.quantity * it.rate))}</Text>
             </View>
           ))}
-        </View>
 
-        <View style={styles.totals}>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Subtotal</Text>
-            <Text>{fmt(subtotal)}</Text>
-          </View>
+          {/* The preview has no tax row because a draft carries no tax. Show
+              subtotal + tax here only when the saved invoice actually has a
+              rate, so a taxed total is never presented without its basis. */}
           {tax > 0 ? (
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Tax · {tax}%</Text>
-              <Text>{fmt(subtotal * tax / 100)}</Text>
-            </View>
+            <>
+              <View style={styles.taxRow}>
+                <Text>Subtotal</Text>
+                <Text>{money(subtotal)}</Text>
+              </View>
+              <View style={styles.taxRow}>
+                <Text>Tax · {tax}%</Text>
+                <Text>{money((subtotal * tax) / 100)}</Text>
+              </View>
+            </>
           ) : null}
-          <View style={styles.grandTotal}>
-            <Text>Total</Text>
-            <Text>{fmt(total)}</Text>
+
+          <View style={styles.totalRow}>
+            <Text>TOTAL DUE</Text>
+            <Text>{money(total)}</Text>
           </View>
         </View>
 
-        <View style={styles.footer}>
-          <Text>Payment terms: {paymentTerms}. Please remit by {fmtDate(invoice.dueDate)}.</Text>
-        </View>
+        <Text style={styles.issued}>{fmtLongDate(invoice.issuedDate)}</Text>
       </Page>
     </Document>
   );

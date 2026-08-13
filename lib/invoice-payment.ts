@@ -32,3 +32,23 @@ export function paymentInfoFromWorkspace(ws: Workspace): InvoicePaymentInfo {
     payeeName: ws.invoicePayeeName,
   };
 }
+
+/**
+ * The lines of the "Funds payable to" block, in order, with "" marking a blank
+ * spacer line. Shared so the preview and the PDF render the identical block.
+ */
+export function payableToLines(p: InvoicePaymentInfo): string[] {
+  return [
+    `Payable to ${p.payeeName}`,
+    "",
+    `CONTACT: ${p.contactName}`,
+    `EMAIL: ${p.contactEmail}`,
+    "",
+    "PAYMENT METHOD",
+    p.bankName,
+    ...p.bankAddressLines,
+    "",
+    `Account: ${p.accountNumber}`,
+    `Routing: ${p.routingNumber}`,
+  ];
+}

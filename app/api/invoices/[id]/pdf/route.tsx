@@ -24,7 +24,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const buffer = await renderToBuffer(
     <InvoicePDF
       invoice={invoice}
-      workspaceName={session.workspace.name}
       paymentTerms={session.workspace.defaultPaymentTerms}
       payment={paymentInfoFromWorkspace(session.workspace)}
     />
