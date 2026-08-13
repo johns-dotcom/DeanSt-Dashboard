@@ -7,12 +7,10 @@ export function InvoicePreviewPanel({
   draft,
   number,
   payment,
-  paymentTerms,
 }: {
   draft: DraftInvoice;
   number: string;
   payment: InvoicePaymentInfo;
-  paymentTerms: string;
 }) {
   const payableTo = payableToLines(payment);
   const subtotal = draft.lineItems.reduce(
@@ -96,7 +94,7 @@ export function InvoicePreviewPanel({
           Due by:
         </span>
         <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--ink-soft)" }}>
-          {draft.dueDate ? formatDate(draft.dueDate).toUpperCase() : paymentTerms.toUpperCase()}
+          {draft.dueDate ? formatDate(draft.dueDate).toUpperCase() : "—"}
         </span>
       </div>
 

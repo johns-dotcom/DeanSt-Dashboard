@@ -124,11 +124,9 @@ function BrandPlate() {
 
 export function InvoicePDF({
   invoice,
-  paymentTerms,
   payment,
 }: {
   invoice: Invoice;
-  paymentTerms: string;
   payment: InvoicePaymentInfo;
 }) {
   const subtotal = Number(invoice.subtotal);
@@ -169,7 +167,7 @@ export function InvoicePDF({
 
         <View style={styles.dueRow}>
           <Text style={styles.sectionLabel}>Due by:</Text>
-          <Text style={styles.dueValue}>{invoice.dueDate ? fmtDate(invoice.dueDate) : paymentTerms}</Text>
+          <Text style={styles.dueValue}>{fmtDate(invoice.dueDate)}</Text>
         </View>
 
         <View style={{ marginTop: 16 }}>

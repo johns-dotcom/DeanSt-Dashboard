@@ -58,7 +58,6 @@ function toDraft(inv: Invoice): DraftInvoice {
 export function InvoicesClient({
   invoices,
   workspaceName,
-  paymentTerms,
   payment,
   nextInvoiceNumber,
   clientPages,
@@ -68,7 +67,6 @@ export function InvoicesClient({
 }: {
   invoices: Invoice[];
   workspaceName: string;
-  paymentTerms: string;
   payment: InvoicePaymentInfo;
   nextInvoiceNumber: string;
   clientPages: InvoiceClientPage[];
@@ -183,12 +181,7 @@ export function InvoicesClient({
           onSaved={() => { setEditingId(null); setDraft(initialDraft); }}
           onCancel={startNew}
         />
-        <InvoicePreviewPanel
-          draft={draft}
-          number={displayNumber}
-          payment={payment}
-          paymentTerms={paymentTerms}
-        />
+        <InvoicePreviewPanel draft={draft} number={displayNumber} payment={payment} />
       </div>
 
       <section
