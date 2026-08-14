@@ -9,6 +9,15 @@ import { InvoiceFormPanel } from "./invoice-form";
 import { InvoicePreviewPanel } from "./invoice-preview";
 import { ClientTabs } from "./client-tabs";
 import { ReceiptsPanel } from "./receipts-panel";
+import { InvoiceToolbar } from "./invoice-toolbar";
+import {
+  DEFAULT_FILTERS,
+  groupInvoices,
+  hasActiveFilters,
+  matchesFilters,
+  statusCounts,
+  type InvoiceFilterState,
+} from "@/lib/invoice-filters";
 import { deleteInvoice, setInvoiceStatus, setInvoiceSent, setInvoiceType, combineInvoices } from "./actions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combine } from "lucide-react";
@@ -82,6 +91,7 @@ export function InvoicesClient({
   const [draft, setDraft] = useState<DraftInvoice>(initialDraft);
   const [receiptsFor, setReceiptsFor] = useState<Invoice | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<InvoiceFilterState>(DEFAULT_FILTERS);
   const [pending, startTransition] = useTransition();
 
   // Reset draft when navigating between client tabs
@@ -90,6 +100,14 @@ export function InvoicesClient({
     setDraft(initialDraft);
     setSelected(new Set());
   }, [activeClientSlug, initialDraft]);
+
+  const filtered = useMemo(
+    () => invoices.filter((inv) => matchesFilters(inv, filters)),
+    [invoices, filters]
+  );
+  const groups = useMemo(() => groupInvoices(filtered, filters), [filtered, filters]);
+  const counts = useMemo(() => statusCounts(invoices), [invoices]);
+  const filtersActive = hasActiveFilters(filters);
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -101,9 +119,12 @@ export function InvoicesClient({
 
   // Only unsent invoices are selectable; dropped IDs (e.g. after a combine) are
   // ignored. Combining requires 2+ of the same client and type.
+  //
+  // Derived from the *filtered* rows, so an invoice the filters have hidden can
+  // never be swept into a combine the user can't see.
   const selectedInvoices = useMemo(
-    () => invoices.filter((i) => selected.has(i.id) && !i.sent),
-    [invoices, selected]
+    () => filtered.filter((i) => selected.has(i.id) && !i.sent),
+    [filtered, selected]
   );
   const combineClient = selectedInvoices[0]?.client;
   const combineType = selectedInvoices[0]?.type;
@@ -212,7 +233,7 @@ export function InvoicesClient({
                 marginTop: 4,
               }}
             >
-              {invoices.length} on file
+              {filtersActive ? `${filtered.length} of ${invoices.length} on file` : `${invoices.length} on file`}
             </div>
           </div>
           {selectedInvoices.length > 0 ? (
@@ -254,6 +275,10 @@ export function InvoicesClient({
           ) : null}
         </header>
 
+        {invoices.length > 0 ? (
+          <InvoiceToolbar state={filters} onChange={setFilters} counts={counts} />
+        ) : null}
+
         {invoices.length === 0 ? (
           <div style={{ padding: "60px 26px", textAlign: "center" }}>
             <div className="serif" style={{ fontSize: 24, color: "var(--ink)", fontStyle: "italic" }}>
@@ -262,6 +287,27 @@ export function InvoicesClient({
             <div style={{ fontSize: 14, color: "var(--ink-soft)", marginTop: 6 }}>
               Fill in the form above to create your first invoice.
             </div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: "60px 26px", textAlign: "center" }}>
+            <div className="serif" style={{ fontSize: 24, color: "var(--ink)", fontStyle: "italic" }}>
+              No invoices match your filters.
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilters({ ...DEFAULT_FILTERS, group: filters.group, sort: filters.sort })}
+              style={{
+                marginTop: 10,
+                background: "transparent",
+                border: "none",
+                color: "var(--ink-soft)",
+                fontSize: 14,
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: 'Arial, sans-serif' }}>
@@ -278,8 +324,34 @@ export function InvoicesClient({
                 <Th align="right" width={140}>Actions</Th>
               </tr>
             </thead>
-            <tbody>
-              {invoices.map((inv) => (
+            {groups.map((group) => (
+              <tbody key={group.key}>
+                {group.label ? (
+                  <tr style={{ background: "var(--cream-deep)", borderTop: "1px solid var(--hair)" }}>
+                    <td colSpan={9} style={{ padding: "10px 18px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                          gap: 12,
+                        }}
+                      >
+                        <span
+                          className="mono"
+                          style={{ fontSize: 11, letterSpacing: "0.18em", color: "var(--ink)" }}
+                        >
+                          {group.label}
+                        </span>
+                        <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                          {group.invoices.length} {group.invoices.length === 1 ? "invoice" : "invoices"} ·{" "}
+                          <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrency(group.total)}</span>
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+                {group.invoices.map((inv) => (
                 <tr
                   key={inv.id}
                   style={{ borderTop: "1px solid var(--hair)", cursor: "pointer" }}
@@ -361,8 +433,9 @@ export function InvoicesClient({
                     </div>
                   </Td>
                 </tr>
-              ))}
-            </tbody>
+                ))}
+              </tbody>
+            ))}
           </table>
         )}
       </section>
