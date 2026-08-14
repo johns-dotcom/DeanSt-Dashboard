@@ -5,7 +5,8 @@ import type { Workspace } from "@/lib/db/schema";
 
 function workspace(overrides: Partial<Workspace> = {}): Workspace {
   return {
-    invoiceEntityName: "DEAN ST CO",
+    invoiceEntityName: "Dean Street Media Inc.",
+    invoiceEntityAddress: "825 S Le Doux Rd\nLos Angeles, CA, 90035",
     invoiceContactName: "John Skead",
     invoiceContactEmail: "john@deanst.co",
     invoiceBankName: "JP Morgan Chase",
@@ -21,7 +22,8 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 describe("paymentInfoFromWorkspace", () => {
   it("maps workspace columns to the payment info shape", () => {
     const p = paymentInfoFromWorkspace(workspace());
-    assert.equal(p.entityName, "DEAN ST CO");
+    assert.equal(p.entityName, "Dean Street Media Inc.");
+    assert.deepEqual(p.entityAddressLines, ["825 S Le Doux Rd", "Los Angeles, CA, 90035"]);
     assert.equal(p.payeeName, "Jacob Allen");
     assert.equal(p.accountNumber, "953162333");
     assert.equal(p.routingNumber, "322271627");
@@ -50,8 +52,14 @@ describe("payableToLines", () => {
     assert.equal(lines.filter((l) => l.startsWith("Payable to")).length, 1);
   });
 
-  it("does not print the entity name", () => {
-    assert.ok(!lines.some((l) => l.includes("DEAN ST CO")));
+  it("prints the entity and its address directly under the payee, before the spacer", () => {
+    assert.deepEqual(lines.slice(0, 5), [
+      "Payable to Jacob Allen",
+      "Dean Street Media Inc.",
+      "825 S Le Doux Rd",
+      "Los Angeles, CA, 90035",
+      "",
+    ]);
   });
 
   it("ends with the account and both routing numbers, each labelled", () => {

@@ -220,6 +220,7 @@ const workspaceSchema = z.object({
   default_payment_terms: z.string().min(1).optional(),
   domain_restriction: z.string().nullable().optional(),
   invoice_entity_name: z.string().min(1, "Entity name is required").optional(),
+  invoice_entity_address: z.string().optional(),
   invoice_contact_name: z.string().min(1, "Contact name is required").optional(),
   invoice_contact_email: z.string().min(1, "Contact email is required").optional(),
   invoice_bank_name: z.string().min(1, "Bank name is required").optional(),
@@ -242,6 +243,7 @@ export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
   if (d.default_payment_terms !== undefined) set.defaultPaymentTerms = d.default_payment_terms;
   if (d.domain_restriction !== undefined) set.domainRestriction = d.domain_restriction;
   if (d.invoice_entity_name !== undefined) set.invoiceEntityName = d.invoice_entity_name;
+  if (d.invoice_entity_address !== undefined) set.invoiceEntityAddress = d.invoice_entity_address;
   if (d.invoice_contact_name !== undefined) set.invoiceContactName = d.invoice_contact_name;
   if (d.invoice_contact_email !== undefined) set.invoiceContactEmail = d.invoice_contact_email;
   if (d.invoice_bank_name !== undefined) set.invoiceBankName = d.invoice_bank_name;

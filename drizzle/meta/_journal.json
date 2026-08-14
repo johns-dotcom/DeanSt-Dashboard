@@ -99,6 +99,13 @@
       "when": 1780108800000,
       "tag": "0013_invoice_wire_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1780195200000,
+      "tag": "0014_invoice_entity_address",
+      "breakpoints": true
     }
   ]
 }

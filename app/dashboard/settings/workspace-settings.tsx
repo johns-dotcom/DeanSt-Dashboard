@@ -18,6 +18,7 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
   const [terms, setTerms] = useState(workspace.defaultPaymentTerms);
   // Invoice "Funds payable to" block — one source of truth for preview + PDF.
   const [entityName, setEntityName] = useState(workspace.invoiceEntityName);
+  const [entityAddress, setEntityAddress] = useState(workspace.invoiceEntityAddress);
   const [contactName, setContactName] = useState(workspace.invoiceContactName);
   const [contactEmail, setContactEmail] = useState(workspace.invoiceContactEmail);
   const [bankName, setBankName] = useState(workspace.invoiceBankName);
@@ -35,6 +36,7 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
         invoice_prefix: prefix,
         default_payment_terms: terms,
         invoice_entity_name: entityName,
+        invoice_entity_address: entityAddress,
         invoice_contact_name: contactName,
         invoice_contact_email: contactEmail,
         invoice_bank_name: bankName,
@@ -81,6 +83,16 @@ export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspac
       <div className="space-y-1">
         <Label htmlFor="payeeName">Payable to</Label>
         <Input id="payeeName" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} disabled={disabled} />
+      </div>
+      <div className="col-span-2 space-y-1">
+        <Label htmlFor="entityAddress">Entity address</Label>
+        <Textarea
+          id="entityAddress"
+          rows={2}
+          value={entityAddress}
+          onChange={(e) => setEntityAddress(e.target.value)}
+          disabled={disabled}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor="contactName">Contact name</Label>

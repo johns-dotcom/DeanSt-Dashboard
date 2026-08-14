@@ -82,7 +82,8 @@ export const workspaces = pgTable("workspaces", {
   // "Funds payable to" block shown on invoice previews and PDFs. Kept here (one
   // source of truth) so the on-screen preview and the generated PDF can't drift
   // apart — a wrong account/routing number reaching a client is a real hazard.
-  invoiceEntityName: text("invoice_entity_name").notNull().default("DEAN ST CO"),
+  invoiceEntityName: text("invoice_entity_name").notNull().default("Dean Street Media Inc."),
+  invoiceEntityAddress: text("invoice_entity_address").notNull().default("825 S Le Doux Rd\nLos Angeles, CA, 90035"),
   invoiceContactName: text("invoice_contact_name").notNull().default("John Skead"),
   invoiceContactEmail: text("invoice_contact_email").notNull().default("john@deanst.co"),
   invoiceBankName: text("invoice_bank_name").notNull().default("JP Morgan Chase"),

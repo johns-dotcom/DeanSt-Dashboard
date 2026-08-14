@@ -7,7 +7,9 @@ import type { Workspace } from "@/lib/db/schema";
  * account/routing number reaching a client is a real financial hazard.
  */
 export interface InvoicePaymentInfo {
+  /** Legal entity behind the payee, printed under the payee line. */
   entityName: string;
+  entityAddressLines: string[];
   contactName: string;
   contactEmail: string;
   bankName: string;
@@ -19,16 +21,19 @@ export interface InvoicePaymentInfo {
   payeeName: string;
 }
 
+/** Split a stored multi-line address into trimmed, non-empty lines. */
+function addressLines(value: string): string[] {
+  return value.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
 export function paymentInfoFromWorkspace(ws: Workspace): InvoicePaymentInfo {
   return {
     entityName: ws.invoiceEntityName,
+    entityAddressLines: addressLines(ws.invoiceEntityAddress),
     contactName: ws.invoiceContactName,
     contactEmail: ws.invoiceContactEmail,
     bankName: ws.invoiceBankName,
-    bankAddressLines: ws.invoiceBankAddress
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean),
+    bankAddressLines: addressLines(ws.invoiceBankAddress),
     accountNumber: ws.invoiceAccountNumber,
     routingNumber: ws.invoiceRoutingNumber,
     wireRoutingNumber: ws.invoiceWireRoutingNumber,
@@ -43,6 +48,8 @@ export function paymentInfoFromWorkspace(ws: Workspace): InvoicePaymentInfo {
 export function payableToLines(p: InvoicePaymentInfo): string[] {
   return [
     `Payable to ${p.payeeName}`,
+    p.entityName,
+    ...p.entityAddressLines,
     "",
     `CONTACT: ${p.contactName}`,
     `EMAIL: ${p.contactEmail}`,
