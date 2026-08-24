@@ -3,7 +3,7 @@ import { and, asc, eq, ilike } from "drizzle-orm";
 import { requireSession } from "@/lib/auth/workspace";
 import { db } from "@/lib/db";
 import { invoices, workspaces, invoiceClientPages } from "@/lib/db/schema";
-import { formatInvoiceNumber, lowestAvailableNumber, byInvoiceNumberDesc } from "@/lib/invoice-number";
+import { formatInvoiceNumber, nextInvoiceNumberValue, byInvoiceNumberDesc } from "@/lib/invoice-number";
 import { paymentInfoFromWorkspace } from "@/lib/invoice-payment";
 import { InvoicesClient } from "../../invoices-client";
 
@@ -13,7 +13,7 @@ export default async function ClientInvoicesPage({ params }: { params: { slug: s
 
   const [allPages, [ws], allNumbers] = await Promise.all([
     db.select().from(invoiceClientPages).where(eq(invoiceClientPages.workspaceId, wsId)).orderBy(asc(invoiceClientPages.sortOrder), asc(invoiceClientPages.name)),
-    db.select({ invoicePrefix: workspaces.invoicePrefix }).from(workspaces).where(eq(workspaces.id, wsId)),
+    db.select({ invoicePrefix: workspaces.invoicePrefix, invoiceSeq: workspaces.invoiceSeq }).from(workspaces).where(eq(workspaces.id, wsId)),
     db.select({ invoiceNumber: invoices.invoiceNumber }).from(invoices).where(eq(invoices.workspaceId, wsId)),
   ]);
 
@@ -27,8 +27,11 @@ export default async function ClientInvoicesPage({ params }: { params: { slug: s
 
   rows.sort(byInvoiceNumberDesc);
 
-  // Next number is gap-filled across the whole workspace, not just this client.
-  const nextNumber = formatInvoiceNumber(ws?.invoicePrefix ?? "INV-", lowestAvailableNumber(allNumbers.map((r) => r.invoiceNumber)));
+  // The counter is workspace-wide, not per client page.
+  const nextNumber = formatInvoiceNumber(
+    ws?.invoicePrefix ?? "INV-",
+    nextInvoiceNumberValue(ws?.invoiceSeq ?? 1, allNumbers.map((r) => r.invoiceNumber))
+  );
 
   return (
     <InvoicesClient

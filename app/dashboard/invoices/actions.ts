@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { invoices, invoiceReceipts, workspaces, type LineItem } from "@/lib/db/schema";
 import { requireEditor } from "@/lib/auth/workspace";
 import { logActivity } from "@/lib/activity";
-import { formatInvoiceNumber, lowestAvailableNumber } from "@/lib/invoice-number";
+import { formatInvoiceNumber, nextInvoiceNumberValue } from "@/lib/invoice-number";
 import { computeTotals } from "@/lib/invoice-totals";
 
 const lineItemSchema = z.object({
@@ -30,14 +30,15 @@ const invoiceSchema = z.object({
   status: z.enum(["draft", "pending", "overdue", "paid"]).default("draft"),
 });
 
-// Assigns the lowest available invoice number within a transaction. Locks the
-// workspace row (FOR UPDATE) so concurrent creates serialize and can't pick the
-// same gap. Returns the formatted number.
+// Assigns the next invoice number within a transaction, consuming it from the
+// workspace counter so it is never handed out twice — not even after the
+// invoice that held it is deleted. Locks the workspace row (FOR UPDATE) so
+// concurrent creates serialize instead of racing for the same number.
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function assignNextNumber(tx: Tx, workspaceId: string): Promise<string> {
   const [ws] = await tx
-    .select({ prefix: workspaces.invoicePrefix })
+    .select({ prefix: workspaces.invoicePrefix, seq: workspaces.invoiceSeq })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .for("update");
@@ -45,7 +46,14 @@ async function assignNextNumber(tx: Tx, workspaceId: string): Promise<string> {
     .select({ n: invoices.invoiceNumber })
     .from(invoices)
     .where(eq(invoices.workspaceId, workspaceId));
-  return formatInvoiceNumber(ws?.prefix ?? "INV-", lowestAvailableNumber(rows.map((r) => r.n)));
+
+  const value = nextInvoiceNumberValue(ws?.seq ?? 1, rows.map((r) => r.n));
+  await tx
+    .update(workspaces)
+    .set({ invoiceSeq: value + 1, updatedAt: new Date() })
+    .where(eq(workspaces.id, workspaceId));
+
+  return formatInvoiceNumber(ws?.prefix ?? "INV-", value);
 }
 
 export async function createInvoice(input: z.infer<typeof invoiceSchema>) {

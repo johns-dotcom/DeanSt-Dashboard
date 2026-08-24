@@ -2,7 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { requireSession } from "@/lib/auth/workspace";
 import { db } from "@/lib/db";
 import { invoices, workspaces, invoiceClientPages, invoiceReceipts } from "@/lib/db/schema";
-import { formatInvoiceNumber, lowestAvailableNumber, byInvoiceNumberDesc } from "@/lib/invoice-number";
+import { formatInvoiceNumber, nextInvoiceNumberValue, byInvoiceNumberDesc } from "@/lib/invoice-number";
 import { paymentInfoFromWorkspace } from "@/lib/invoice-payment";
 import { InvoicesClient } from "./invoices-client";
 
@@ -18,7 +18,7 @@ export default async function InvoicesPage() {
       .from(invoiceReceipts)
       .where(eq(invoiceReceipts.workspaceId, wsId))
       .groupBy(invoiceReceipts.invoiceId),
-    db.select({ invoicePrefix: workspaces.invoicePrefix }).from(workspaces).where(eq(workspaces.id, wsId)),
+    db.select({ invoicePrefix: workspaces.invoicePrefix, invoiceSeq: workspaces.invoiceSeq }).from(workspaces).where(eq(workspaces.id, wsId)),
   ]);
 
   rows.sort(byInvoiceNumberDesc);
@@ -26,7 +26,10 @@ export default async function InvoicesPage() {
   const receiptCounts: Record<string, number> = {};
   for (const r of receiptCountRows) receiptCounts[r.invoiceId] = r.count;
 
-  const nextNumber = formatInvoiceNumber(ws?.invoicePrefix ?? "INV-", lowestAvailableNumber(rows.map((r) => r.invoiceNumber)));
+  const nextNumber = formatInvoiceNumber(
+    ws?.invoicePrefix ?? "INV-",
+    nextInvoiceNumberValue(ws?.invoiceSeq ?? 1, rows.map((r) => r.invoiceNumber))
+  );
 
   return (
     <InvoicesClient

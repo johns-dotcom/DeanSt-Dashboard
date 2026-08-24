@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseInvoiceNumber,
-  lowestAvailableNumber,
+  nextInvoiceNumberValue,
   formatInvoiceNumber,
   byInvoiceNumberDesc,
 } from "../lib/invoice-number.ts";
@@ -18,21 +18,31 @@ describe("parseInvoiceNumber", () => {
   });
 });
 
-describe("lowestAvailableNumber", () => {
-  it("starts at 1 for an empty set", () => {
-    assert.equal(lowestAvailableNumber([]), 1);
+describe("nextInvoiceNumberValue", () => {
+  it("starts at 1 for a fresh workspace", () => {
+    assert.equal(nextInvoiceNumberValue(1, []), 1);
   });
-  it("returns the next number when the sequence is contiguous", () => {
-    assert.equal(lowestAvailableNumber(["INV-0001", "INV-0002", "INV-0003"]), 4);
+  it("hands out the counter value", () => {
+    assert.equal(nextInvoiceNumberValue(21, ["INV-0020", "INV-0013"]), 21);
   });
-  it("fills the lowest gap left by a deletion", () => {
-    assert.equal(lowestAvailableNumber(["INV-0001", "INV-0003"]), 2);
+  it("does NOT refill a gap left by a deletion", () => {
+    // The whole point of the change: two invoices made back to back must come
+    // out consecutive, even when earlier numbers are free.
+    assert.equal(nextInvoiceNumberValue(5, ["INV-0001", "INV-0004"]), 5);
   });
-  it("ignores duplicates and unparseable entries", () => {
-    assert.equal(lowestAvailableNumber(["INV-0001", "INV-0001", "DRAFT"]), 2);
+  it("keeps moving forward after the highest invoice is deleted", () => {
+    // Counter is 6, the invoice that held 5 is gone — 5 must not come back.
+    assert.equal(nextInvoiceNumberValue(6, ["INV-0001", "INV-0002"]), 6);
   });
-  it("handles an out-of-order set", () => {
-    assert.equal(lowestAvailableNumber(["INV-0005", "INV-0002", "INV-0001"]), 3);
+  it("advances past existing invoices when the counter lags them", () => {
+    // Self-heal for imported or restored rows: never collide with a live number.
+    assert.equal(nextInvoiceNumberValue(1, ["INV-0020", "INV-0013"]), 21);
+  });
+  it("ignores unparseable numbers", () => {
+    assert.equal(nextInvoiceNumberValue(1, ["DRAFT", "INV-0002"]), 3);
+  });
+  it("never returns less than 1", () => {
+    assert.equal(nextInvoiceNumberValue(0, []), 1);
   });
 });
 

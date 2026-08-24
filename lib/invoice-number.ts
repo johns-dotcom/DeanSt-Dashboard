@@ -1,19 +1,25 @@
 /**
- * Invoice numbering helpers. Numbers are assigned by filling the lowest gap:
- * the next number is the smallest positive integer not already in use, so
- * numbers freed by deleted invoices get reused before the sequence extends.
+ * Invoice numbering helpers. Numbers only ever move forward: each new invoice
+ * takes the workspace's counter, which is then bumped. Gaps left by deleted or
+ * combined invoices are NOT refilled — refilling made numbers unrelated to the
+ * order invoices were created in (two made back to back could come out #0013
+ * and #0017), and it recycled a number that may already be on a PDF sitting in
+ * a client's inbox.
  */
 export function parseInvoiceNumber(s: string): number {
   const m = s.match(/\d+/);
   return m ? parseInt(m[0], 10) : 0;
 }
 
-/** Smallest positive integer not present in the given invoice numbers. */
-export function lowestAvailableNumber(existing: string[]): number {
-  const used = new Set(existing.map(parseInvoiceNumber).filter((n) => n > 0));
-  let n = 1;
-  while (used.has(n)) n++;
-  return n;
+/**
+ * The number to assign next: the workspace counter, floored to just past the
+ * highest number already in use. The floor is a self-heal — if the counter ever
+ * lags the invoices (an import, a restored backup, a hand-edited row), it must
+ * not hand out a number that would collide with an existing one.
+ */
+export function nextInvoiceNumberValue(seq: number, existing: string[]): number {
+  const highest = existing.reduce((max, n) => Math.max(max, parseInvoiceNumber(n)), 0);
+  return Math.max(seq, highest + 1, 1);
 }
 
 export function formatInvoiceNumber(prefix: string, n: number): string {
