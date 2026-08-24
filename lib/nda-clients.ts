@@ -4,7 +4,12 @@
  * Code-defined (not a CRUD table) because each is a legally-distinct document.
  * Pure module — safe to import from both server and client components.
  */
-import { buildNdaBody, buildGrimesBody, type NdaTemplateFields } from "@/lib/nda-template";
+import {
+  buildNdaBody,
+  buildGrimesBody,
+  buildWinnieHarlowBody,
+  type NdaTemplateFields,
+} from "@/lib/nda-template";
 
 export interface NdaClientConfig {
   slug: string;
@@ -64,7 +69,39 @@ const GRIMES: NdaClientConfig = {
   ],
 };
 
-export const NDA_CLIENTS: NdaClientConfig[] = [DEAN_ST, GRIMES];
+const WINNIE_HARLOW: NdaClientConfig = {
+  slug: "winnie-harlow",
+  name: "Winnie Harlow",
+  owner: {
+    name: 'Everyoung LLC and Chantelle Whitney Brown-Young p/k/a "Winnie Harlow"',
+    signatoryName: "Chantelle Whitney Brown-Young",
+    signatoryPosition: "",
+  },
+  showOwnerFields: false,
+  showTerms: false,
+  format: { titleUnderline: false, paragraphIndent: true },
+  buildBody: buildWinnieHarlowBody,
+  // The recipient signs alone: the agreement is given "by and on behalf of"
+  // them, so there is no Artist counter-signature line in the client's PDF.
+  signatureLines: () => [
+    "ACCEPTED AND AGREED, including acknowledgement of receipt of all Consideration:",
+    "",
+    "_________________________",
+    "Name",
+    "",
+    "_________________________",
+    "Signature",
+    "",
+    "S.S.# ____________________",
+    "",
+    "Address:",
+    "____________________",
+    "____________________",
+    "____________________",
+  ],
+};
+
+export const NDA_CLIENTS: NdaClientConfig[] = [DEAN_ST, GRIMES, WINNIE_HARLOW];
 
 export const DEFAULT_NDA_CLIENT_SLUG = DEAN_ST.slug;
 
