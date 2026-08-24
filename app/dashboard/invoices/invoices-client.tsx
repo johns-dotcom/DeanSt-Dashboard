@@ -38,6 +38,7 @@ export interface DraftInvoice {
   description: string;
   lineItems: LineItem[];
   dueDate: string;
+  paymentTerms: string;
   status: Invoice["status"];
   type: Invoice["type"];
 }
@@ -48,6 +49,7 @@ const emptyDraft: DraftInvoice = {
   description: "",
   lineItems: [{ description: "", quantity: 1, rate: 0, amount: 0 }],
   dueDate: "",
+  paymentTerms: "",
   status: "draft",
   type: "invoice",
 };
@@ -59,6 +61,7 @@ function toDraft(inv: Invoice): DraftInvoice {
     description: inv.description ?? "",
     lineItems: inv.lineItems?.length ? inv.lineItems : [{ description: "", quantity: 1, rate: 0, amount: 0 }],
     dueDate: inv.dueDate ?? "",
+    paymentTerms: inv.paymentTerms ?? "",
     status: inv.status,
     type: inv.type,
   };
@@ -68,6 +71,7 @@ export function InvoicesClient({
   invoices,
   workspaceName,
   payment,
+  defaultPaymentTerms,
   nextInvoiceNumber,
   clientPages,
   activeClientSlug,
@@ -77,6 +81,7 @@ export function InvoicesClient({
   invoices: Invoice[];
   workspaceName: string;
   payment: InvoicePaymentInfo;
+  defaultPaymentTerms: string;
   nextInvoiceNumber: string;
   clientPages: InvoiceClientPage[];
   activeClientSlug: string | null;
@@ -84,8 +89,8 @@ export function InvoicesClient({
   receiptCounts?: Record<string, number>;
 }) {
   const initialDraft = useMemo<DraftInvoice>(
-    () => ({ ...emptyDraft, client: activeClientName ?? "" }),
-    [activeClientName]
+    () => ({ ...emptyDraft, client: activeClientName ?? "", paymentTerms: defaultPaymentTerms }),
+    [activeClientName, defaultPaymentTerms]
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftInvoice>(initialDraft);

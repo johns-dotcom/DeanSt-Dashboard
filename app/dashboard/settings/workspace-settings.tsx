@@ -8,9 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateWorkspace } from "./actions";
+import { PAYMENT_TERMS } from "@/lib/invoice-terms";
 import type { Workspace } from "@/lib/db/schema";
-
-const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Due on receipt"];
 
 export function WorkspaceSettings({ workspace, disabled }: { workspace: Workspace; disabled: boolean }) {
   const [name, setName] = useState(workspace.name);

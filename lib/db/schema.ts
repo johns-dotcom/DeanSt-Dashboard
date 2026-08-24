@@ -144,6 +144,9 @@ export const invoices = pgTable("invoices", {
   total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
   issuedDate: date("issued_date").notNull().defaultNow(),
   dueDate: date("due_date"),
+  // Payment terms as chosen per invoice (e.g. "Net 30"). Null on invoices made
+  // before terms were selectable, which print no terms line.
+  paymentTerms: text("payment_terms"),
   status: invoiceStatusEnum("status").notNull().default("draft"),
   sent: boolean("sent").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -89,13 +89,25 @@ export function InvoicePreviewPanel({
 
       <div style={{ borderTop: "1px solid var(--hair)", margin: "22px 0" }} />
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
-        <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", fontWeight: 600 }}>
-          Due by:
-        </span>
-        <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--ink-soft)" }}>
-          {draft.dueDate ? formatDate(draft.dueDate).toUpperCase() : "—"}
-        </span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+          <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", fontWeight: 600 }}>
+            Due by:
+          </span>
+          <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--ink-soft)" }}>
+            {draft.dueDate ? formatDate(draft.dueDate).toUpperCase() : "—"}
+          </span>
+        </div>
+        {draft.paymentTerms.trim() ? (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+            <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", fontWeight: 600 }}>
+              Payment terms:
+            </span>
+            <span className="mono" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--ink-soft)" }}>
+              {draft.paymentTerms.toUpperCase()}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div style={{ marginTop: 22 }}>

@@ -38,6 +38,7 @@ export default async function ClientInvoicesPage({ params }: { params: { slug: s
       invoices={rows}
       workspaceName={session.workspace.name}
       payment={paymentInfoFromWorkspace(session.workspace)}
+      defaultPaymentTerms={session.workspace.defaultPaymentTerms}
       nextInvoiceNumber={nextNumber}
       clientPages={allPages}
       activeClientSlug={page.slug}

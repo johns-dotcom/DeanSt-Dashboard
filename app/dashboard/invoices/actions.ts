@@ -26,6 +26,7 @@ const invoiceSchema = z.object({
   line_items: z.array(lineItemSchema).min(1, "At least one line item"),
   tax_rate: z.coerce.number().min(0).max(100).default(0),
   due_date: z.string().optional().nullable(),
+  payment_terms: z.string().optional().nullable(),
   issued_date: z.string().optional().nullable(),
   status: z.enum(["draft", "pending", "overdue", "paid"]).default("draft"),
 });
@@ -79,6 +80,7 @@ export async function createInvoice(input: z.infer<typeof invoiceSchema>) {
         total: total.toFixed(2),
         issuedDate: parsed.data.issued_date || today,
         dueDate: parsed.data.due_date || null,
+        paymentTerms: parsed.data.payment_terms || null,
         status: parsed.data.status,
       }).returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
       return row;
@@ -125,6 +127,7 @@ export async function updateInvoice(id: string, input: z.infer<typeof invoiceSch
         total: total.toFixed(2),
         issuedDate: parsed.data.issued_date || undefined,
         dueDate: parsed.data.due_date || null,
+        paymentTerms: parsed.data.payment_terms || null,
         status: parsed.data.status,
         updatedAt: new Date(),
       })
@@ -297,6 +300,10 @@ export async function combineInvoices(input: z.infer<typeof combineSchema>) {
   const { subtotal, total } = computeTotals(lineItems, taxRate);
   const dueDates = rows.map((r) => r.dueDate).filter((d): d is string => Boolean(d)).sort();
   const dueDate = dueDates.length ? dueDates[dueDates.length - 1] : null; // latest, so no line's deadline shortens
+  // Same rule as the tax rate: carry the terms only when every invoice agrees,
+  // so the combined invoice never states terms one of its lines didn't have.
+  const allTerms = rows.map((r) => r.paymentTerms ?? null);
+  const paymentTerms = allTerms.every((t) => t === allTerms[0]) ? allTerms[0] : null;
   const description = rows.map((r) => r.description?.trim()).find(Boolean) ?? null;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -318,6 +325,7 @@ export async function combineInvoices(input: z.infer<typeof combineSchema>) {
           total: total.toFixed(2),
           issuedDate: today,
           dueDate,
+          paymentTerms,
           status: "draft",
         })
         .returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });

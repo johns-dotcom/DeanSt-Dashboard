@@ -169,6 +169,12 @@ export function InvoicePDF({
           <Text style={styles.sectionLabel}>Due by:</Text>
           <Text style={styles.dueValue}>{fmtDate(invoice.dueDate)}</Text>
         </View>
+        {invoice.paymentTerms?.trim() ? (
+          <View style={[styles.dueRow, { marginTop: 4 }]}>
+            <Text style={styles.sectionLabel}>Payment terms:</Text>
+            <Text style={styles.dueValue}>{invoice.paymentTerms}</Text>
+          </View>
+        ) : null}
 
         <View style={{ marginTop: 16 }}>
           <View style={styles.tableHead}>

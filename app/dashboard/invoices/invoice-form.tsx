@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ReceiptsManager } from "./receipts-manager";
 import { createInvoice, updateInvoice } from "./actions";
 import { formatFileSize } from "@/lib/utils";
+import { PAYMENT_TERMS, dueDateFromTerms } from "@/lib/invoice-terms";
 import type { Invoice, LineItem } from "@/lib/db/schema";
 import type { DraftInvoice } from "./invoices-client";
 
@@ -106,6 +107,7 @@ export function InvoiceFormPanel({
         tax_rate: 0,
         issued_date: new Date().toISOString().slice(0, 10),
         due_date: draft.dueDate || null,
+        payment_terms: draft.paymentTerms || null,
         status: draft.status,
       };
       const result = editingInvoice
@@ -362,7 +364,27 @@ export function InvoiceFormPanel({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div>
+            <Eyebrow size={9}>Terms</Eyebrow>
+            <select
+              value={draft.paymentTerms}
+              onChange={(e) => {
+                const paymentTerms = e.target.value;
+                // Terms date the invoice: recompute the due date from the issue
+                // date. The field stays editable, so a one-off date still wins.
+                const issued = editingInvoice?.issuedDate ?? new Date().toISOString().slice(0, 10);
+                const due = dueDateFromTerms(issued, paymentTerms);
+                setDraft((p) => ({ ...p, paymentTerms, dueDate: due ?? p.dueDate }));
+              }}
+              style={{ ...inputStyle, marginTop: 4 }}
+            >
+              <option value="">No terms</option>
+              {PAYMENT_TERMS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <Eyebrow size={9}>Due</Eyebrow>
             <input
