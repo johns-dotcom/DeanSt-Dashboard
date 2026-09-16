@@ -51,9 +51,14 @@ const WORKSPACE_NAV: NavEntry[] = [
   { label: "Deals", href: "/dashboard/deals", Icon: BriefcaseIcon },
   { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
   { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
-  { label: "Supplies", href: "/dashboard/supplies", Icon: SupplyIcon },
   { label: "Clients", href: "/dashboard/clients", Icon: FolderIcon },
   { label: "Brand Kit", href: "/dashboard/logo", Icon: LogoIcon },
+];
+
+// Office management — its own section, pinned below Settings at the bottom of
+// the nav so it reads as a separate area of the app rather than client work.
+const OFFICE_NAV: NavEntry[] = [
+  { label: "Supplies", href: "/dashboard/supplies", Icon: SupplyIcon },
 ];
 
 function NavLabel({ children }: { children: React.ReactNode }) {
@@ -182,6 +187,20 @@ export function SidebarBody({
             active={pathname.startsWith("/dashboard/settings")}
             onNavigate={onNavigate}
           />
+        </div>
+      </div>
+
+      <div>
+        <NavLabel>Office</NavLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {OFFICE_NAV.map((item) => (
+            <NavItem
+              key={item.href}
+              {...item}
+              active={pathname.startsWith(item.href)}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
       </div>
 
