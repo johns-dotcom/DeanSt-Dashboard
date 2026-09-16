@@ -12,14 +12,14 @@ const TITLES: Record<string, string> = {
   "/dashboard/deals": "Deals",
   "/dashboard/contacts": "Contacts",
   "/dashboard/tasks": "Tasks",
-  "/dashboard/clients": "Clients",
+  "/dashboard/documents": "Documents",
   "/dashboard/settings": "Settings",
 };
 
 function titleFor(pathname: string): string {
   if (TITLES[pathname]) return TITLES[pathname];
   // Fall back to the longest matching section prefix (e.g. per-client pages
-  // under /dashboard/clients/[slug] show "Clients").
+  // under /dashboard/documents/[slug] show "Documents").
   const match = Object.keys(TITLES)
     .filter((p) => p !== "/dashboard" && pathname.startsWith(p + "/"))
     .sort((a, b) => b.length - a.length)[0];

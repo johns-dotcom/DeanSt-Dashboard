@@ -7,7 +7,7 @@ import { Folder, ChevronRight, FolderPlus, Pencil, Trash2, Search } from "lucide
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { createClient, renameClient, deleteClient } from "./actions";
+import { createClient, renameClient, deleteClient } from "./client-actions";
 import { cn } from "@/lib/utils";
 import type { Client } from "@/lib/db/schema";
 
@@ -44,7 +44,7 @@ export function ClientsIndex({
       const r = await createClient({ name });
       if ("error" in r && r.error) { toast.error(r.error); return; }
       toast.success(`Client “${name}” created`);
-      if ("slug" in r && r.slug) router.push(`/dashboard/clients/${r.slug}`);
+      if ("slug" in r && r.slug) router.push(`/dashboard/documents/${r.slug}`);
     });
   }
   function handleRename(c: Client) {
@@ -93,7 +93,7 @@ export function ClientsIndex({
             const count = counts[c.id] ?? 0;
             return (
               <div key={c.id} className="group relative flex items-center gap-3 rounded-lg border-hairline border-border bg-surface p-4 transition-colors hover:bg-hover">
-                <Link href={`/dashboard/clients/${c.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
+                <Link href={`/dashboard/documents/${c.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
                   <Folder className={cn("h-5 w-5 flex-none", folderColor(c.id))} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{c.name}</span>

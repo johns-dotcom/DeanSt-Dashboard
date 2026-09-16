@@ -37,7 +37,7 @@ import {
   deleteDocumentFolder,
   moveDocument,
   moveFolder,
-} from "../documents/actions";
+} from "./actions";
 import { cn, formatDate } from "@/lib/utils";
 import type { Client, Document as Doc, DocumentFolder } from "@/lib/db/schema";
 
@@ -294,7 +294,7 @@ export function ClientExplorer({
       {/* Top bar: breadcrumb + actions + view switch */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav className="flex flex-wrap items-center gap-1 text-sm">
-          <Link href="/dashboard/clients" className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-hover">
+          <Link href="/dashboard/documents" className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-hover">
             <Home className="h-3.5 w-3.5" /> Clients
           </Link>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />

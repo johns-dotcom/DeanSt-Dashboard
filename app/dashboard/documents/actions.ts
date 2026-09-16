@@ -32,7 +32,7 @@ export async function deleteDocument(id: string) {
     entityLabel: `${doc.fileName} · ${doc.client}/${doc.category}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -73,7 +73,7 @@ export async function renameDocument(input: z.infer<typeof renameDocInput>) {
     entityLabel: `Renamed · ${doc.fileName} → ${newName}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -151,7 +151,7 @@ export async function createDocumentFolder(input: z.infer<typeof createFolderInp
     entityLabel: `Created folder · ${client.name}/${name}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -190,7 +190,7 @@ export async function renameDocumentFolder(input: z.infer<typeof renameInput>) {
     entityLabel: `Renamed folder · ${folder.client}/${folder.name} → ${newName}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -229,7 +229,7 @@ export async function deleteDocumentFolder(id: string) {
     entityLabel: `Removed folder · ${folder.client}/${folder.name}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -270,7 +270,7 @@ export async function moveDocument(input: z.infer<typeof moveDocInput>) {
     .set({ folderId: parsed.data.folderId, clientId, client, subcategory, updatedAt: new Date() })
     .where(eq(documents.id, doc.id));
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 
@@ -311,7 +311,7 @@ export async function moveFolder(input: z.infer<typeof moveFolderInput>) {
     .set({ parentId, updatedAt: new Date() })
     .where(and(eq(documentFolders.id, folder.id), eq(documentFolders.workspaceId, session.workspace.id)));
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
 

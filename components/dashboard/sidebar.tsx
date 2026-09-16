@@ -51,7 +51,7 @@ const WORKSPACE_NAV: NavEntry[] = [
   { label: "Deals", href: "/dashboard/deals", Icon: BriefcaseIcon },
   { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
   { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
-  { label: "Clients", href: "/dashboard/clients", Icon: FolderIcon },
+  { label: "Documents", href: "/dashboard/documents", Icon: FolderIcon },
   { label: "Brand Kit", href: "/dashboard/logo", Icon: LogoIcon },
 ];
 

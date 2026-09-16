@@ -69,7 +69,7 @@ export async function createClient(input: z.infer<typeof createSchema>) {
     entityLabel: `Created client · ${name}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const, slug };
 }
 
@@ -118,7 +118,7 @@ export async function renameClient(input: z.infer<typeof renameSchema>) {
     entityLabel: `Renamed client · ${client.name} → ${name}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const, slug: newSlug };
 }
 
@@ -156,6 +156,6 @@ export async function deleteClient(id: string) {
     entityLabel: `Deleted client · ${client.name}`,
   });
 
-  revalidatePath("/dashboard/clients", "layout");
+  revalidatePath("/dashboard/documents", "layout");
   return { ok: true as const };
 }
