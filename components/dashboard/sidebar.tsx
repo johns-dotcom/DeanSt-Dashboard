@@ -33,6 +33,17 @@ function NdaIcon({ className }: { className?: string }) {
   );
 }
 
+// A stacked-boxes glyph, drawn in the same 20x20 stroked style as the others.
+function SupplyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={`stroke-current ${className ?? ""}`} width="18" height="18" viewBox="0 0 20 20" fill="none" strokeWidth="1.5">
+      <path d="M2.5 6.5 10 3l7.5 3.5-7.5 3.5-7.5-3.5Z" />
+      <path d="M2.5 6.5v7L10 17l7.5-3.5v-7" />
+      <path d="M10 10v7" />
+    </svg>
+  );
+}
+
 const WORKSPACE_NAV: NavEntry[] = [
   { label: "Overview", href: "/dashboard", Icon: GridIcon },
   { label: "Invoices", href: "/dashboard/invoices", Icon: DocIcon },
@@ -40,6 +51,7 @@ const WORKSPACE_NAV: NavEntry[] = [
   { label: "Deals", href: "/dashboard/deals", Icon: BriefcaseIcon },
   { label: "Contacts", href: "/dashboard/contacts", Icon: UsersIcon },
   { label: "Tasks", href: "/dashboard/tasks", Icon: CheckIcon },
+  { label: "Supplies", href: "/dashboard/supplies", Icon: SupplyIcon },
   { label: "Clients", href: "/dashboard/clients", Icon: FolderIcon },
   { label: "Brand Kit", href: "/dashboard/logo", Icon: LogoIcon },
 ];

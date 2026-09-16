@@ -25,6 +25,7 @@ export const dealStatusEnum = pgEnum("deal_status", ["active", "closed", "negoti
 export const taskPriorityEnum = pgEnum("task_priority", ["high", "medium", "low"]);
 export const taskStatusEnum = pgEnum("task_status", ["open", "done"]);
 export const linkedEntityTypeEnum = pgEnum("linked_entity_type", ["invoice", "deal", "contact"]);
+export const supplyRequestStatusEnum = pgEnum("supply_request_status", ["requested", "ordered", "received"]);
 
 /* ─────────── Auth.js core tables ─────────── */
 export const users = pgTable("users", {
@@ -345,6 +346,70 @@ export const activityEvents = pgTable("activity_events", {
   workspaceCreatedIdx: index("activity_events_workspace_created_idx").on(t.workspaceId, t.createdAt),
 }));
 
+/* ─────────── office supplies ─────────── */
+
+// The catalog of supplies the office keeps. quantityOnHand is edited directly
+// as stock is used and is added to when a purchase is logged; needsReorder is a
+// manual flag (no thresholds — the office manager decides what "low" means).
+export const supplies = pgTable("supplies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category"),
+  vendor: text("vendor"),
+  /** Where to rebuy it — rendered as a link on the item. */
+  reorderUrl: text("reorder_url"),
+  /** How this item is counted: ea, rm (ream), pk, bx… */
+  unitLabel: text("unit_label").notNull().default("ea"),
+  /** Last price paid per unit; refreshed when a purchase is logged. */
+  unitCost: numeric("unit_cost", { precision: 12, scale: 2 }),
+  quantityOnHand: integer("quantity_on_hand").notNull().default(0),
+  location: text("location"),
+  needsReorder: boolean("needs_reorder").notNull().default(false),
+  notes: text("notes"),
+  createdBy: uuid("created_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  workspaceIdx: index("supplies_workspace_idx").on(t.workspaceId),
+}));
+
+// One row per buy. Spend totals and "last bought" are derived from these rows
+// rather than denormalized onto the supply, so they can't drift out of sync.
+export const supplyPurchases = pgTable("supply_purchases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  supplyId: uuid("supply_id").notNull().references(() => supplies.id, { onDelete: "cascade" }),
+  purchasedOn: date("purchased_on").notNull().defaultNow(),
+  vendor: text("vendor"),
+  quantity: integer("quantity").notNull().default(1),
+  totalCost: numeric("total_cost", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  createdBy: uuid("created_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  workspaceSupplyIdx: index("supply_purchases_workspace_supply_idx").on(t.workspaceId, t.supplyId),
+}));
+
+// The shopping list. `item` is free text so anyone can ask for something that
+// isn't in the catalog yet; supplyId links the request to a catalog item when
+// there is one.
+export const supplyRequests = pgTable("supply_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  item: text("item").notNull(),
+  supplyId: uuid("supply_id").references(() => supplies.id, { onDelete: "set null" }),
+  quantity: integer("quantity"),
+  status: supplyRequestStatusEnum("status").notNull().default("requested"),
+  notes: text("notes"),
+  requestedBy: uuid("requested_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  requestedByName: text("requested_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  workspaceIdx: index("supply_requests_workspace_idx").on(t.workspaceId),
+}));
+
 /* ─────────── relations (light, only what we query) ─────────── */
 export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
   workspace: one(workspaces, { fields: [workspaceMembers.workspaceId], references: [workspaces.id] }),
@@ -374,6 +439,10 @@ export type DocumentFolder = typeof documentFolders.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type InvoiceClientPage = typeof invoiceClientPages.$inferSelect;
 export type InvoiceReceipt = typeof invoiceReceipts.$inferSelect;
+export type Supply = typeof supplies.$inferSelect;
+export type SupplyPurchase = typeof supplyPurchases.$inferSelect;
+export type SupplyRequest = typeof supplyRequests.$inferSelect;
+export type SupplyRequestStatus = (typeof supplyRequestStatusEnum.enumValues)[number];
 export type Nda = typeof ndas.$inferSelect;
 export type NdaFile = typeof ndaFiles.$inferSelect;
 

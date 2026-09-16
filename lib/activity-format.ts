@@ -23,7 +23,12 @@ export type ActivityAction =
   | "task.completed"
   | "task.reopened"
   | "document.uploaded"
-  | "document.deleted";
+  | "document.deleted"
+  | "supply.created"
+  | "supply.updated"
+  | "supply.deleted"
+  | "supply.purchased"
+  | "supply.requested";
 
 const TITLES: Record<ActivityAction, string> = {
   "auth.signed_in": "Signed in",
@@ -51,6 +56,11 @@ const TITLES: Record<ActivityAction, string> = {
   "task.reopened": "Reopened task",
   "document.uploaded": "Uploaded file",
   "document.deleted": "Deleted file",
+  "supply.created": "Added supply",
+  "supply.updated": "Updated supply",
+  "supply.deleted": "Deleted supply",
+  "supply.purchased": "Logged supply purchase",
+  "supply.requested": "Requested supply",
 };
 
 /** Short bold action label, e.g. "Created invoice". */
@@ -92,6 +102,7 @@ const CATEGORY: Record<string, string> = {
   contact: "contacts",
   task: "tasks",
   document: "documents",
+  supply: "supplies",
 };
 
 export function activityCategory(action: string): string {
