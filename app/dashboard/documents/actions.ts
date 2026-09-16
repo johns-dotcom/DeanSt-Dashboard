@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { documents, documentFolders, clients } from "@/lib/db/schema";
+import { documents, documentFolders, clients, workspaces } from "@/lib/db/schema";
 import { requireSession, requireEditor } from "@/lib/auth/workspace";
-import { deleteObjectBestEffort } from "@/lib/r2";
+import { deleteObjectBestEffort, getObject } from "@/lib/r2";
 import { logActivity } from "@/lib/activity";
+import { getGoogleAccessToken, hasDriveAccess } from "@/lib/google/token";
+import { ensureFolder, uploadFile } from "@/lib/google/drive";
 
 export async function deleteDocument(id: string) {
   const session = await requireEditor();
@@ -322,4 +324,70 @@ export async function listDocumentFolders() {
     .from(documentFolders)
     .where(eq(documentFolders.workspaceId, session.workspace.id))
     .orderBy(asc(documentFolders.client), asc(documentFolders.sortOrder), asc(documentFolders.name));
+}
+
+/**
+ * Pushes a stored document up to the workspace's Drive folder, filed under a
+ * subfolder named for its client. Falls back to the acting user's own Drive
+ * when no workspace folder is configured, so a personal connection still works.
+ * R2 keeps the bytes; the Drive id and link are recorded for "Open in Drive".
+ */
+export async function saveDocumentToDrive(id: string) {
+  const session = await requireEditor();
+  const wsId = session.workspace.id;
+
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, id), eq(documents.workspaceId, wsId)))
+    .limit(1);
+  if (!doc) return { error: "Not found" };
+
+  if (!(await hasDriveAccess(session.user.id))) {
+    return { error: "Connect Google Drive in Settings first" };
+  }
+  const token = await getGoogleAccessToken(session.user.id);
+  if (!token) return { error: "Drive access expired — reconnect in Settings" };
+
+  try {
+    const [ws] = await db
+      .select({ driveFolderId: workspaces.driveFolderId })
+      .from(workspaces)
+      .where(eq(workspaces.id, wsId))
+      .limit(1);
+
+    const parentId = ws?.driveFolderId
+      ? await ensureFolder(token, doc.client, ws.driveFolderId)
+      : undefined;
+
+    const file = await getObject(doc.filePath);
+    const uploaded = await uploadFile(token, {
+      name: doc.fileName,
+      mimeType: file.contentType ?? "application/octet-stream",
+      parentId,
+      body: Buffer.from(file.body),
+    });
+
+    await db
+      .update(documents)
+      .set({ driveFileId: uploaded.id, driveLink: uploaded.webViewLink ?? null, updatedAt: new Date() })
+      .where(and(eq(documents.id, id), eq(documents.workspaceId, wsId)));
+
+    await logActivity({
+      action: "document.exported",
+      workspaceId: wsId,
+      actorUserId: session.user.id,
+      actorMemberId: session.member.id,
+      actorName: session.member.displayName,
+      entityType: "document",
+      entityId: id,
+      entityLabel: doc.fileName,
+    });
+
+    revalidatePath("/dashboard/documents", "layout");
+    return { ok: true as const, link: uploaded.webViewLink ?? null };
+  } catch (err) {
+    console.error("[saveDocumentToDrive] failed", err instanceof Error ? err.message : err);
+    return { error: "Couldn't save to Drive. Check the connection in Settings." };
+  }
 }

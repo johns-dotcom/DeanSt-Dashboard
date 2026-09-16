@@ -1,52 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { accounts } from "@/lib/db/schema";
-
-/**
- * Resolve a valid Google access token for `userId`, refreshing if necessary.
- * Returns null when the user has no linked Google account, or when the refresh
- * grant fails (e.g. they revoked access).
- */
-async function getValidAccessToken(userId: string): Promise<string | null> {
-  const [account] = await db
-    .select()
-    .from(accounts)
-    .where(and(eq(accounts.userId, userId), eq(accounts.provider, "google")))
-    .limit(1);
-
-  if (!account) return null;
-
-  const now = Math.floor(Date.now() / 1000);
-  const stillValid =
-    account.access_token && account.expires_at && account.expires_at > now + 60;
-  if (stillValid) return account.access_token!;
-
-  if (!account.refresh_token) return account.access_token; // last-resort
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.AUTH_GOOGLE_ID ?? "",
-      client_secret: process.env.AUTH_GOOGLE_SECRET ?? "",
-      refresh_token: account.refresh_token,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  if (!res.ok) return null;
-  const data = (await res.json()) as { access_token: string; expires_in?: number };
-
-  await db
-    .update(accounts)
-    .set({
-      access_token: data.access_token,
-      expires_at: now + (data.expires_in ?? 3600),
-    })
-    .where(and(eq(accounts.userId, userId), eq(accounts.provider, "google")));
-
-  return data.access_token;
-}
+import { getGoogleAccessToken } from "@/lib/google/token";
 
 function encodeRfc822({
   to,
@@ -99,7 +53,7 @@ export async function sendInviteViaGmail({
   html: string;
   text: string;
 }): Promise<{ ok: true } | { error: string }> {
-  const token = await getValidAccessToken(fromUserId);
+  const token = await getGoogleAccessToken(fromUserId);
   if (!token) {
     return {
       error:

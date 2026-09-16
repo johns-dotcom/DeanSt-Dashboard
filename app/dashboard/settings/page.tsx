@@ -8,6 +8,9 @@ import { Eyebrow } from "@/components/brand/eyebrow";
 import { AppearanceSettings } from "./appearance-settings";
 import { ProfileForm } from "./profile-form";
 import { TeamSettings } from "./team-settings";
+import { WorkspaceSettings } from "./workspace-settings";
+import { DriveSettings } from "./drive-settings";
+import { hasDriveAccess } from "@/lib/google/token";
 
 function SectionCard({ children, padded = true }: { children: React.ReactNode; padded?: boolean }) {
   return (
@@ -29,7 +32,7 @@ export default async function SettingsPage() {
   const session = await requireSession();
   const isAdmin = session.member.role === "admin";
 
-  const [memberRows, invites] = await Promise.all([
+  const [memberRows, invites, driveConnected] = await Promise.all([
     db
       .select({
         id: workspaceMembers.id,
@@ -51,6 +54,7 @@ export default async function SettingsPage() {
           .where(and(eq(workspaceInvites.workspaceId, session.workspace.id), eq(workspaceInvites.accepted, false)))
           .orderBy(desc(workspaceInvites.createdAt))
       : Promise.resolve([]),
+    hasDriveAccess(session.user.id),
   ]);
 
   return (
@@ -90,6 +94,25 @@ export default async function SettingsPage() {
           currentMemberId={session.member.id}
           isAdmin={isAdmin}
         />
+      </section>
+
+      <section>
+        <SectionHeader number="04" kicker="Billing" title="Workspace & invoicing" />
+        <SectionCard>
+          <WorkspaceSettings workspace={session.workspace} disabled={!isAdmin} />
+        </SectionCard>
+      </section>
+
+      <section>
+        <SectionHeader number="05" kicker="Connected" title="Google Drive" />
+        <SectionCard>
+          <DriveSettings
+            connected={driveConnected}
+            pickerConfigured={Boolean(process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY)}
+            driveFolderId={session.workspace.driveFolderId ?? ""}
+            isAdmin={isAdmin}
+          />
+        </SectionCard>
       </section>
 
       <PageFooter />

@@ -95,6 +95,10 @@ export const workspaces = pgTable("workspaces", {
   invoiceRoutingNumber: text("invoice_routing_number").notNull().default("322271627"),
   invoiceWireRoutingNumber: text("invoice_wire_routing_number").notNull().default("021000021"),
   invoicePayeeName: text("invoice_payee_name").notNull().default("Jacob Allen"),
+  // Google Drive folder (usually on a Shared Drive) that documents are exported
+  // into, so the org owns them rather than whoever clicked Save. Null = export
+  // to the acting user's own Drive.
+  driveFolderId: text("drive_folder_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -239,6 +243,10 @@ export const documents = pgTable("documents", {
   filePath: text("file_path").notNull(),
   fileSize: integer("file_size").notNull().default(0),
   uploadedBy: uuid("uploaded_by").references(() => workspaceMembers.id, { onDelete: "set null" }),
+  // Set when the file came from Drive or has been exported to it, so the
+  // explorer can offer "Open in Drive". R2 stays the source of truth either way.
+  driveFileId: text("drive_file_id"),
+  driveLink: text("drive_link"),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

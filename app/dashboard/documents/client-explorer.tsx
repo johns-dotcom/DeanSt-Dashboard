@@ -10,6 +10,7 @@ import {
   UploadCloud,
   Trash2,
   Download,
+  HardDrive,
   Eye,
   ChevronRight,
   ChevronDown,
@@ -28,10 +29,12 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { SlideOver, SlideOverContent } from "@/components/dashboard/slide-over";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { UploadForm } from "./upload-form";
+import { DrivePicker } from "./drive-picker";
 import {
   deleteDocument,
   renameDocument,
   getDownloadUrl,
+  saveDocumentToDrive,
   createDocumentFolder,
   renameDocumentFolder,
   deleteDocumentFolder,
@@ -69,10 +72,12 @@ export function ClientExplorer({
   client,
   folders,
   documents,
+  driveConnected = false,
 }: {
   client: Client;
   folders: DocumentFolder[];
   documents: Doc[];
+  driveConnected?: boolean;
 }) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("grid");
@@ -137,6 +142,18 @@ export function ClientExplorer({
   const toggleExpand = (id: string, def: boolean) => setExpanded((p) => ({ ...p, [id]: !(p[id] ?? def) }));
 
   // ─── document ops ───
+  async function handleDrive(doc: Doc) {
+    if (doc.driveLink) {
+      window.open(doc.driveLink, "_blank", "noopener");
+      return;
+    }
+    const id = toast.loading(`Saving ${doc.fileName} to Drive…`);
+    const r = await saveDocumentToDrive(doc.id);
+    if ("error" in r && r.error) { toast.error(r.error, { id }); return; }
+    toast.success("Saved to Drive", { id });
+    router.refresh();
+  }
+
   async function handleDownload(doc: Doc) {
     const r = await getDownloadUrl(doc.id);
     if ("error" in r) { toast.error(r.error); return; }
@@ -247,6 +264,9 @@ export function ClientExplorer({
           <IconBtn label="Rename" onClick={() => handleRenameDoc(doc)} disabled={pending}><Pencil className="h-3.5 w-3.5" /></IconBtn>
           <IconBtn label="View" onClick={() => handleView(doc)}><Eye className="h-3.5 w-3.5" /></IconBtn>
           <IconBtn label="Download" onClick={() => handleDownload(doc)}><Download className="h-3.5 w-3.5" /></IconBtn>
+          {driveConnected ? (
+            <IconBtn label={doc.driveLink ? "Open in Drive" : "Save to Drive"} onClick={() => handleDrive(doc)} disabled={pending}><HardDrive className="h-3.5 w-3.5" /></IconBtn>
+          ) : null}
           <IconBtn label="Delete" onClick={() => handleDeleteDoc(doc)} disabled={pending}><Trash2 className="h-3.5 w-3.5" /></IconBtn>
         </span>
       </div>
@@ -314,6 +334,7 @@ export function ClientExplorer({
           <Button onClick={() => setUploadFolderId({ folderId: activeFolderId })}>
             <Upload className="h-4 w-4" /> Upload here
           </Button>
+          <DrivePicker clientId={client.id} folderId={activeFolderId} connected={driveConnected} />
           <ViewToggle value={view} onChange={changeView} />
         </div>
       </div>

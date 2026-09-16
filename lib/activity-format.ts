@@ -24,6 +24,8 @@ export type ActivityAction =
   | "task.reopened"
   | "document.uploaded"
   | "document.deleted"
+  | "document.imported"
+  | "document.exported"
   | "supply.created"
   | "supply.updated"
   | "supply.deleted"
@@ -56,6 +58,8 @@ const TITLES: Record<ActivityAction, string> = {
   "task.reopened": "Reopened task",
   "document.uploaded": "Uploaded file",
   "document.deleted": "Deleted file",
+  "document.imported": "Imported from Drive",
+  "document.exported": "Saved to Drive",
   "supply.created": "Added supply",
   "supply.updated": "Updated supply",
   "supply.deleted": "Deleted supply",

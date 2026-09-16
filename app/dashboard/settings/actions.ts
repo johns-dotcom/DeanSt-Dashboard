@@ -229,6 +229,7 @@ const workspaceSchema = z.object({
   invoice_routing_number: z.string().min(1, "ACH routing number is required").optional(),
   invoice_wire_routing_number: z.string().min(1, "Wire routing number is required").optional(),
   invoice_payee_name: z.string().min(1, "Payee name is required").optional(),
+  drive_folder_id: z.string().nullable().optional(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
@@ -252,6 +253,7 @@ export async function updateWorkspace(input: z.infer<typeof workspaceSchema>) {
   if (d.invoice_routing_number !== undefined) set.invoiceRoutingNumber = d.invoice_routing_number;
   if (d.invoice_wire_routing_number !== undefined) set.invoiceWireRoutingNumber = d.invoice_wire_routing_number;
   if (d.invoice_payee_name !== undefined) set.invoicePayeeName = d.invoice_payee_name;
+  if (d.drive_folder_id !== undefined) set.driveFolderId = d.drive_folder_id?.trim() || null;
 
   await db.update(workspaces).set(set).where(eq(workspaces.id, session.workspace.id));
 

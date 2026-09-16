@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/workspace";
 import { db } from "@/lib/db";
 import { clients, documents, documentFolders } from "@/lib/db/schema";
 import { ClientExplorer } from "../client-explorer";
+import { hasDriveAccess } from "@/lib/google/token";
 
 export default async function ClientPage({ params }: { params: { slug: string } }) {
   const session = await requireSession();
@@ -16,7 +17,7 @@ export default async function ClientPage({ params }: { params: { slug: string } 
     .limit(1);
   if (!client) notFound();
 
-  const [folders, docs] = await Promise.all([
+  const [folders, docs, driveConnected] = await Promise.all([
     db
       .select()
       .from(documentFolders)
@@ -27,7 +28,8 @@ export default async function ClientPage({ params }: { params: { slug: string } 
       .from(documents)
       .where(and(eq(documents.workspaceId, wsId), eq(documents.clientId, client.id)))
       .orderBy(desc(documents.uploadedAt)),
+    hasDriveAccess(session.user.id),
   ]);
 
-  return <ClientExplorer client={client} folders={folders} documents={docs} />;
+  return <ClientExplorer client={client} folders={folders} documents={docs} driveConnected={driveConnected} />;
 }
